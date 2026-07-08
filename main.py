@@ -148,6 +148,20 @@ def read_file(filename: str) -> str:
     except Exception as e:
         return f"System Error: Failed to read text file contents: {e}"
 
+def read_pdf(file_path: str) -> str:
+    if not is_safe_path(file_path):
+        return "Security Exception: Blocked attempt to parse document mapping outside sandbox limits."
+    try:
+        if not os.path.exists(file_path):
+            return f"System Error: PDF target document '{file_path}' does not exist."
+        reader = PdfReader(file_path)
+        text = "".join([page.extract_text() + "\n" for page in reader.pages])
+        if not text.strip():
+            return "System message: PDF file parsed successfully but contains no readable layout text elements."
+        return f"PDF Extraction Content Layer Layout ('{file_path}'):\n{text}"
+    except Exception as e:
+        return f"System Error: Failed to parse PDF document structures: {e}"
+
 def get_hardware_status() -> str:
     try:
         cpu_load = psutil.cpu_percent(interval=0.1)
@@ -300,7 +314,7 @@ def trigger_cloud_integration(endpoint_url: str, payload_json_string: str) -> st
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
-    "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file,
+    "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file, "read_pdf": read_pdf,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
     "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
@@ -318,6 +332,7 @@ aira_tools = [
     {"type": "function", "function": {"name": "rename_file", "description": "Renames existing file or folder.", "parameters": {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]}}},
     {"type": "function", "function": {"name": "delete_file", "description": "Deletes file from directory root completely.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
     {"type": "function", "function": {"name": "read_file", "description": "Reads text strings stored in target file.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
+    {"type": "function", "function": {"name": "read_pdf", "description": "Extracts text content from a local PDF document file for analysis or summarization.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
@@ -328,15 +343,6 @@ aira_tools = [
     {"type": "function", "function": {"name": "search_internet", "description": "Browses open web index search engines engines dynamically for live data.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "trigger_cloud_integration", "description": "Transmits JSON parameters dynamically to external cloud webhooks.", "parameters": {"type": "object", "properties": {"endpoint_url": {"type": "string"}, "payload_json_string": {"type": "string"}}, "required": ["endpoint_url", "payload_json_string"]}}}
 ]
-
-def read_pdf(file_path: str) -> str:
-    if not is_safe_path(file_path):
-        return "Security Exception: Blocked attempt to parse document mapping outside sandbox limits."
-    try:
-        reader = PdfReader(file_path)
-        return "".join([page.extract_text() + "\n" for page in reader.pages])
-    except Exception as e:
-        return f"System Error: Failed to parse PDF document: {e}"
 
 def auto_compact_history(history, groq_client):
     if len(history) <= 20:
@@ -381,9 +387,10 @@ DEFAULT_SYSTEM_PROMPT = [{
         "BALANCED MODE OPERATIONAL RULES:\n"
         "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
         "2. Natively and autonomously invoke your structural tools whenever Shadik asks for concrete actions "
-        "(like opening websites, manipulating file tracks, checking times, or stopping apps).\n"
+        "(like opening websites, manipulating files, reading PDFs, checking times, or stopping apps).\n"
         "3. You operate inside a path sandbox. All file creations, reads, and updates are monitored for absolute system path boundaries.\n"
-        "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
+        "4. When reading local or uploaded PDF sheets, call 'read_pdf' to process textual matrix layers safely.\n"
+        "5. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
 }]
 
@@ -441,10 +448,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 13 Sandbox Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
+        print("🪐 [Level 14 Document Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
         return
         
-    print("🚀 [Level 13 Sandbox Node] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 14 Document Node] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -470,7 +477,7 @@ def running_multiplatform_listener_loop():
 
 
 # =====================================================================
-# LEVEL 8 & 9: NATIVE DESKTOP GRAPHICAL APPLICATION SHELL DESIGN
+# NATIVE DESKTOP GRAPHICAL APPLICATION SHELL DESIGN
 # =====================================================================
 class AIRAGUI:
     def __init__(self, root):
@@ -487,7 +494,7 @@ class AIRAGUI:
         
         self.chat_display = scrolledtext.ScrolledText(root, bg="#0d0d11", fg="#e2e2ea", font=("Segoe UI", 11), wrap=tk.WORD, state=tk.DISABLED, bd=0)
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        self.append_chat_message("AIRA", "Level 13 Sandbox Active. File operations isolated securely, Shadik.")
+        self.append_chat_message("AIRA", "Level 14 Document Engine Online. PDF parser linked seamlessly, Shadik.")
         
         self.input_frame = tk.Frame(root, bg="#111116")
         self.input_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=15)
@@ -509,7 +516,7 @@ class AIRAGUI:
 
     def update_telemetry_loop(self):
         try:
-            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  SECURITY: WORKSPACE PATH SANDBOX ENFORCED")
+            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  INTELLIGENCE: PDF SUMMARIZER ACTIVE")
         except Exception: pass
         self.root.after(3000, self.update_telemetry_loop)
 
