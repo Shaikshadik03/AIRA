@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from groq import Groq
 from ddgs import DDGS      # Preserved V3: DuckDuckGo Search Engine
 from pypdf import PdfReader  # Preserved V3: PDF Reader Document Extractor
+import psutil              # Preserved V4: Hardware telemetry engine
 
 # Load environment variables from your .env file
 load_dotenv()
@@ -106,10 +107,8 @@ def read_file(filename: str) -> str:
     try:
         if "/" in filename or "\\" in filename:
             return "System Error: Security violation. Reading targets must live directly within the workspace root."
-            
         if not os.path.exists(filename):
             return f"System Error: Cannot read file '{filename}' because it does not exist."
-            
         if os.path.isdir(filename):
             return f"System Error: '{filename}' is a directory folder structure, not a text file data block."
             
@@ -118,6 +117,68 @@ def read_file(filename: str) -> str:
         return f"Workspace File Execution Payload ('{filename}'):\n{file_data}"
     except Exception as e:
         return f"System Error: Failed to extract internal text string matrix. Reason: {e}"
+
+def get_hardware_status() -> str:
+    """Gathers dynamic hardware utilization statistics like CPU load, RAM use, and Battery life."""
+    try:
+        cpu_load = psutil.cpu_percent(interval=0.5)
+        ram_percent = psutil.virtual_memory().percent
+        battery = psutil.sensors_battery()
+        
+        if battery is not None:
+            plugged_in = "Plugged In Charging" if battery.power_plugged else "Running on Battery Power"
+            battery_str = f"{battery.percent}% ({plugged_in})"
+        else:
+            battery_str = "No physical battery detected (Desktop PC Core Engine)"
+            
+        return (
+            "System Hardware Statistics Report:\n"
+            f"- CPU Processing Load: {cpu_load}%\n"
+            f"- RAM Memory Utilization: {ram_percent}%\n"
+            f"- Power/Battery Profile: {battery_str}"
+        )
+    except Exception as e:
+        return f"System Error: Failed to poll machine telemetry arrays. Reason: {e}"
+
+def launch_app(app_name: str) -> str:
+    """Spawns a local native desktop application process on Windows safely using Shell Execution."""
+    try:
+        # Secure Explicit Mapping Table built from Shadik's Task Manager layouts
+        app_lookup = {
+            "notepad": "notepad.exe",
+            "calculator": "calc.exe",
+            "paint": "mspaint.exe",
+            "task_manager": "taskmgr.exe",
+            "chrome": "chrome.exe",
+            "vs_code": "code",
+            "snipping_tool": "snippingtool.exe",
+            "settings": "ms-settings:",
+            "whatsapp": "whatsapp:",
+            "camera": "microsoft.windows.camera:",
+            "clock": "ms-clock:"
+        }
+        
+        target_clean_name = app_name.lower().strip()
+        
+        # 🌟 UPGRADE: Bulletproof Dual-Route Claude Execution Guard
+        if "claude" in target_clean_name:
+            try:
+                # Route A: Attempt to initialize local application register
+                os.startfile("claude.exe")
+                return "System message: Successfully deployed and executed native Claude desktop app window."
+            except Exception:
+                # Route B: Automatic browser fallback routing if app path isn't globally registered
+                webbrowser.open("https://claude.ai")
+                return "System message: Local shortcut path wasn't open. Successfully fell back to launching Claude AI via web browser."
+        
+        if target_clean_name in app_lookup:
+            executable = app_lookup[target_clean_name]
+            os.startfile(executable)
+            return f"System message: Successfully launched local execution process for '{target_clean_name}'."
+        else:
+            return f"System Error: '{app_name}' is not registered in the safe app registry profile layout."
+    except Exception as e:
+        return f"System Error: Failed to spawn system app interface. Reason: {e}"
 
 
 # 2. Scalable Tool Registry Directory Mapping
@@ -130,7 +191,9 @@ tool_registry = {
     "create_folder": create_folder,
     "rename_file": rename_file,
     "delete_file": delete_file,
-    "read_file": read_file  # Level 2 Blueprint Hook Active
+    "read_file": read_file,
+    "get_hardware_status": get_hardware_status,
+    "launch_app": launch_app  
 }
 
 # 3. Dynamic Native AI Agent Tool Blueprints (JSON Schema Toolbox Array)
@@ -143,10 +206,7 @@ aira_tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "The web URL string to open. Example: 'https://www.youtube.com'"
-                    }
+                    "url": {"type": "string", "description": "The web URL string to open. Example: 'https://www.youtube.com'"}
                 },
                 "required": ["url"]
             }
@@ -157,11 +217,7 @@ aira_tools = [
         "function": {
             "name": "get_current_time",
             "description": "Returns the current local real-world time. Use this whenever the user explicitly asks for the time.",
-            "parameters": {
-                "type": "object",
-                "properties": {},  
-                "required": []
-            }
+            "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
     {
@@ -169,11 +225,7 @@ aira_tools = [
         "function": {
             "name": "get_current_date",
             "description": "Returns the current local real-world date. Use this whenever the user explicitly asks for today's date.",
-            "parameters": {
-                "type": "object",
-                "properties": {},  
-                "required": []
-            }
+            "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
     {
@@ -181,11 +233,7 @@ aira_tools = [
         "function": {
             "name": "list_files",
             "description": "Lists all file documents inside the current project workspace directory.",
-            "parameters": {
-                "type": "object",
-                "properties": {},  
-                "required": []
-            }
+            "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
     {
@@ -196,14 +244,8 @@ aira_tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filename": {
-                        "type": "string",
-                        "description": "The exact name of the target file to build, including extension. Example: 'notes.txt'."
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "The text string layout data to compile and write inside the document body."
-                    }
+                    "filename": {"type": "string", "description": "The exact name of the target file to build, including extension. Example: 'notes.txt'."},
+                    "content": {"type": "string", "description": "The text string layout data to compile and write inside the document body."}
                 },
                 "required": ["filename"]
             }
@@ -217,10 +259,7 @@ aira_tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "foldername": {
-                        "type": "string",
-                        "description": "The target name of the folder directory to generate. Example: 'assets'."
-                    }
+                    "foldername": {"type": "string", "description": "The target name of the folder directory to generate. Example: 'assets'."}
                 },
                 "required": ["foldername"]
             }
@@ -234,14 +273,8 @@ aira_tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "old_name": {
-                        "type": "string",
-                        "description": "The current filename or directory folder name target to be changed. Example: 'draft.txt'."
-                    },
-                    "new_name": {
-                        "type": "string",
-                        "description": "The fresh new name target string to apply to that file or folder. Example: 'final_version.txt'."
-                    }
+                    "old_name": {"type": "string", "description": "The current filename or directory folder name target to be changed. Example: 'draft.txt'."},
+                    "new_name": {"type": "string", "description": "The fresh new name target string to apply to that file or folder. Example: 'final_version.txt'."}
                 },
                 "required": ["old_name", "new_name"]
             }
@@ -255,10 +288,7 @@ aira_tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filename": {
-                        "type": "string",
-                        "description": "The exact name of the target file to remove from disk. Example: 'old_notes.txt'."
-                    }
+                    "filename": {"type": "string", "description": "The exact name of the target file to remove from disk. Example: 'old_notes.txt'."}
                 },
                 "required": ["filename"]
             }
@@ -272,12 +302,34 @@ aira_tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filename": {
-                        "type": "string",
-                        "description": "The exact string filename identifier target to extract text from. Example: 'config.json'."
-                    }
+                    "filename": {"type": "string", "description": "The exact string filename identifier target to extract text from. Example: 'config.json'."}
                 },
                 "required": ["filename"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_hardware_status",
+            "description": "Pulls live diagnostic telemetry parameters regarding the laptop hardware status directly from the operating system core layer.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "launch_app",
+            "description": "Spawns and launches a local native desktop application program on the user's computer workspace.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "type": "string",
+                        "description": "The common mapped string name of the application tool target to start. Allowed choices: 'notepad', 'calculator', 'paint', 'task_manager', 'chrome', 'vs_code', 'snipping_tool', 'settings', 'whatsapp', 'camera', 'clock', 'claude'."
+                    }
+                },
+                "required": ["app_name"]
             }
         }
     }
