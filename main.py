@@ -25,7 +25,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.7.0")
+app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.8.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -117,6 +117,16 @@ def init_relational_database():
             title TEXT,
             priority TEXT,
             status TEXT,
+            timestamp TEXT
+        )
+    """)
+
+    # SaaS Unalterable Row-Isolated Security Audit Logs Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            action TEXT,
             timestamp TEXT
         )
     """)
@@ -386,7 +396,6 @@ def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
         return f"System Error: Vault indexing search operation aborted: {e}"
 
 def create_task(title: str, priority: str, user_id: str, **kwargs) -> str:
-    """Generates a tracking card row inside the context-isolated Kanban project workspace table."""
     try:
         p_clean = priority.lower().strip()
         if p_clean not in ["high", "medium", "low"]:
@@ -404,7 +413,6 @@ def create_task(title: str, priority: str, user_id: str, **kwargs) -> str:
         return f"System Error: Kanban board append transaction aborted: {e}"
 
 def get_task_matrix(user_id: str, **kwargs) -> str:
-    """Queries context rows to format an urgency prioritization project table layout string."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -430,6 +438,40 @@ def get_task_matrix(user_id: str, **kwargs) -> str:
         return "\n".join(output)
     except Exception as e:
         return f"System Error: Failed to parse relational task parameters: {e}"
+
+def log_user_action(action: str, user_id: str, **kwargs) -> str:
+    """Manually registers an entry into the immutable multi-tenant platform security event tracking table."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO audit_logs (user_id, action, timestamp) VALUES (?, ?, ?)",
+            (user_id, action.strip(), datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"))
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Event telemetry streamed to compliance index row for '{user_id}'."
+    except Exception as e:
+        return f"System Error: Security logging transaction failed: {e}"
+
+def get_audit_trail(user_id: str, **kwargs) -> str:
+    """Queries row-isolated security rows to format a timestamped transaction tracking feed string."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT action, timestamp FROM audit_logs WHERE user_id = ? ORDER BY id DESC LIMIT 15", (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return f"System message: System telemetry records are empty for profile target token context: '{user_id}'."
+            
+        feed = [f"🔒 Platform Security Compliance Audit Trail Index Feed [{user_id}]:"]
+        for action, t_stamp in rows:
+            feed.append(f"  * [{t_stamp}] - {action}")
+        return "\n".join(feed)
+    except Exception as e:
+        return f"System Error: Failed to retrieve isolated telemetry structures: {e}"
 
 def get_hardware_status(**kwargs) -> str:
     try:
@@ -592,6 +634,7 @@ tool_registry = {
     "log_expense": log_expense, "set_monthly_budget": set_monthly_budget, "add_subscription": add_subscription, "get_financial_report": get_financial_report,
     "create_workspace_note": create_workspace_note, "search_workspace_notes": search_workspace_notes,
     "create_task": create_task, "get_task_matrix": get_task_matrix,
+    "log_user_action": log_user_action, "get_audit_trail": get_audit_trail,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
     "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
@@ -611,13 +654,13 @@ aira_tools = [
     {"type": "function", "function": {"name": "read_file", "description": "Reads text strings stored in target file.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
     {"type": "function", "function": {"name": "read_pdf", "description": "Extracts text content from a local PDF document file for analysis or summarization.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]}}},
     {"type": "function", "function": {"name": "log_expense", "description": "Logs an expense entry with a numeric cost value, strict metadata category, and text tracking details.", "parameters": {"type": "object", "properties": {"amount": {"type": "number"}, "category": {"type": "string"}, "description": {"type": "string"}}, "required": ["amount", "category", "description"]}}},
-    {"type": "function", "function": {"name": "set_monthly_budget", "description": "Sets a maximum monthly spending threshold caps constraint limit for an itemized spending category.", "parameters": {"type": "object", "properties": {"category": {"type": "string"}, "amount": {"type": "number"}}, "required": ["category", "amount"]}}},
-    {"type": "function", "function": {"name": "add_subscription", "description": "Logs an active recurring card membership subscription tracking automated monthly bills.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "cost": {"type": "number"}, "renewal_date": {"type": "string"}}, "required": ["name", "cost", "renewal_date"]}}},
-    {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a data summary tracking spending aggregates, category budget compliance ratios, and subscription timelines.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a tracking summary parsing total outflux calculations and categorical itemized ledgers.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "create_workspace_note", "description": "Saves a text knowledge block record directly into the secure cloud database note vault with a search title.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"}}, "required": ["title", "content"]}}},
     {"type": "function", "function": {"name": "search_workspace_notes", "description": "Scans your row-isolated relational database notes vault for matching title or content search keywords.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "create_task", "description": "Registers a new task execution ticket card into your multi-tenant workspace project backlog board.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "priority": {"type": "string", "description": "Must be 'high', 'medium', or 'low'"}}, "required": ["title", "priority"]}}},
     {"type": "function", "function": {"name": "get_task_matrix", "description": "Pulls your row-isolated task backlog and organizes active cards into a clean priority matrix board layout.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "log_user_action", "description": "Appends a transactional tracking parameter description into the unalterable system metrics history log table.", "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]}}},
+    {"type": "function", "function": {"name": "get_audit_trail", "description": "Pulls a chronological context log feed tracking all core platform interactions associated with your unique account footprint.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
@@ -651,9 +694,9 @@ def fetch_isolated_user_history(user_id: str):
         "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
         "Respond directly and concisely with adaptive candor and a touch of wit. "
         f"You are running inside a production cloud web architecture. Active session user token: {user_id}. {profile_ctx}\n\n"
-        "ROW-ISOLATION SECURITY OPERATIONAL RULES:\n"
-        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
-        "2. Natively invoke structural action tools autonomously whenever requested by user intents.\n"
+        "SAAS TELEMETRY RULES:\n"
+        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts.\n"
+        "2. Natively invoke structural auditing tools autonomously whenever requested by user intents.\n"
         "3. You operate within a strict multi-tenant framework. Do not pollute overlapping cross-tenant session arrays.\n"
         "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
@@ -735,10 +778,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 23 Kanban Matrix] Telegram Listener Standby Mode: Token missing.")
+        print("🪐 [Level 21 Toolkit Node] Telegram Listener Standby Mode: Token missing.")
         return
         
-    print("🚀 [Level 23 Kanban Matrix] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 21 Toolkit Node] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -833,5 +876,5 @@ if __name__ == "__main__":
     # Run the production API server engine node
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Production-Optimized Kanban Matrix Server on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Production-Optimized Audit Engine Server on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
