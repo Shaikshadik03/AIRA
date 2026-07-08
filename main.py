@@ -7,6 +7,7 @@ from groq import Groq
 from ddgs import DDGS      # Preserved V3: DuckDuckGo Search Engine
 from pypdf import PdfReader  # Preserved V3: PDF Reader Document Extractor
 import psutil              # Preserved V4: Hardware telemetry engine
+import pyttsx3             # 🌟 LEVEL 7: Offline Text-to-Speech Audio Engine
 
 # Load environment variables from your .env file
 load_dotenv()
@@ -20,10 +21,40 @@ PROFILE_FILE = "profile.json"
 DEADLINES_FILE = "deadlines.json"
 
 # =====================================================================
-# 🚀 AIRA V6 SYSTEM — AGENT ACTION TOOL CORES
+# 🌟 LEVEL 7: NATIVE VOICE SPEECH SYNTHESIS INITIALIZATION
+# =====================================================================
+try:
+    engine = pyttsx3.init()
+    # Configure an optimal speaking rate (words per minute)
+    engine.setProperty('rate', 185)
+    # Select a clean system voice profile (0 for male, 1 for female depending on OS config)
+    voices = engine.getProperty('voices')
+    if len(voices) > 1:
+        engine.setProperty('voice', voices[1].id)  # Standard clean assistant profile
+    else:
+        engine.setProperty('voice', voices[0].id)
+    VOICE_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️ Voice engine initialization skipped. Audio output unavailable. Reason: {e}")
+    VOICE_AVAILABLE = False
+
+def aira_speak(text: str):
+    """🌟 LEVEL 7: Strips helper code tags and converts raw output text into vocal audio speech."""
+    if not VOICE_AVAILABLE or not text:
+        return
+    # Strip clean system tracking blocks before reading out loud
+    clean_text = text.replace("<function>", "").replace("</function>", "")
+    clean_text = clean_text.replace("<error_message>", "").replace("</error_message>", "")
+    try:
+        engine.say(clean_text)
+        engine.runAndWait()
+    except Exception:
+        pass
+
+# =====================================================================
+# 🚀 AIRA V7 SYSTEM — AGENT ACTION TOOL CORES
 # =====================================================================
 
-# 1. Core Python System-Level Action Functions
 def open_website(url: str) -> str:
     """Opens any specified website URL in the user's default browser safely."""
     if not url.startswith(("http://", "https://")):
@@ -266,7 +297,7 @@ def get_countdown_alerts() -> str:
         return f"System Error: Failed to process timeline array differences. Reason: {e}"
 
 def search_internet(query: str) -> str:
-    """🌟 LEVEL 6: Connects AIRA autonomously to the live web to fetch summaries on news, hackathons, and internships."""
+    """Connects AIRA autonomously to the live web to fetch summaries on news, hackathons, and internships."""
     try:
         print(f"🔍 [Autonomous Tool Execution] Scanning web index pages for: '{query}'...")
         with DDGS() as ddgs:
@@ -298,7 +329,7 @@ tool_registry = {
     "read_profile_facts": read_profile_facts,
     "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts,
-    "search_internet": search_internet  # Level 6 Registered!
+    "search_internet": search_internet
 }
 
 # 3. Dynamic Native AI Agent Tool Blueprints
@@ -480,11 +511,11 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "search_internet",
-            "description": "🌟 LEVEL 6: Browses live web engines dynamically. Use this whenever the user asks for the latest news, tech updates, open internship roles, or coding contests/hackathons happening right now.",
+            "description": "Browses live web engines dynamically. Use this whenever the user asks for the latest news, tech updates, open internship roles, or coding contests/hackathons happening right now.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "The target keyword string text to find online. Example: 'latest AI news 2026' or 'student coding hackathons 2026'."}
+                    "query": {"type": "string", "description": "The target keyword string text to find online."}
                 },
                 "required": ["query"]
             }
@@ -535,7 +566,7 @@ def auto_compact_history(history, groq_client):
             f"Timeline logs to compress:\n{raw_text_to_condense}"
         )
         compaction_response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # Level 4 Pro-Move: Light model for compaction speed
+            model="llama-3.1-8b-instant",
             messages=[{"role": "system", "content": compaction_prompt}]
         )
         compressed_summary = compaction_response.choices[0].message.content
@@ -622,7 +653,6 @@ while True:
         conversation_history.append({"role": "user", "content": user_input})
 
     try:
-        # Level 4 Pro-Move Swap: Utilizing high-speed engine layer to optimize token longevity
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=conversation_history,
@@ -682,12 +712,14 @@ while True:
             )
             final_reply = final_response.choices[0].message.content
             print(f"\nAIRA: {final_reply}\n")
+            aira_speak(final_reply)  # 🌟 LEVEL 7: Voice Audio Output Execution Trigger
             conversation_history.append({"role": "assistant", "content": final_reply})
             continue  
             
         ai_reply = message.content
         if ai_reply:
             print(f"\nAIRA: {ai_reply}\n")
+            aira_speak(ai_reply)  # 🌟 LEVEL 7: Voice Audio Output Execution Trigger
             conversation_history.append({"role": "assistant", "content": ai_reply})
         
     except Exception as e:
