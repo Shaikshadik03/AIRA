@@ -168,6 +168,31 @@ def launch_app(app_name: str) -> str:
     except Exception as e:
         return f"System Error: Failed to launch system app: {e}"
 
+def kill_app_process(app_name: str) -> str:
+    """Forcefully terminates running Windows desktop processes using system handles."""
+    try:
+        target = app_name.lower().strip()
+        slug_map = {
+            "chrome": "chrome.exe", "notepad": "notepad.exe", "calculator": "calc.exe",
+            "vscode": "code.exe", "vs code": "code.exe", "paint": "mspaint.exe"
+        }
+        process_target = slug_map.get(target, target if target.endswith(".exe") else f"{target}.exe")
+        
+        killed_count = 0
+        for proc in psutil.process_iter(['name']):
+            try:
+                if proc.info['name'] and proc.info['name'].lower() == process_target.lower():
+                    proc.kill()
+                    killed_count += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+                
+        if killed_count > 0:
+            return f"System message: Successfully terminated {killed_count} running instance(s) of '{process_target}'."
+        return f"System message: Process target execution scan completed. Zero instances of '{process_target}' are running."
+    except Exception as e:
+        return f"System Error: Process slayer pipeline failed: {e}"
+
 def save_profile_fact(fact_key: str, fact_value: str) -> str:
     try:
         profile = {}
@@ -264,8 +289,8 @@ tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
     "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file,
-    "get_hardware_status": get_hardware_status, "launch_app": launch_app, "save_profile_fact": save_profile_fact,
-    "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
+    "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
+    "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
     "trigger_cloud_integration": trigger_cloud_integration
 }
@@ -283,6 +308,7 @@ aira_tools = [
     {"type": "function", "function": {"name": "read_file", "description": "Reads text strings stored in target file.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
+    {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "save_profile_fact", "description": "Saves fact parameters to user long-term memory file.", "parameters": {"type": "object", "properties": {"fact_key": {"type": "string"}, "fact_value": {"type": "string"}}, "required": ["fact_key", "fact_value"]}}},
     {"type": "function", "function": {"name": "read_profile_facts", "description": "Reads long-term user context profile database facts.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "add_deadline", "description": "Saves an upcoming milestone tracker calendar date.", "parameters": {"type": "object", "properties": {"event_name": {"type": "string"}, "target_date": {"type": "string"}}, "required": ["event_name", "target_date"]}}},
@@ -326,12 +352,25 @@ if os.path.exists(PROFILE_FILE):
         try:
             profile_data = json.load(f)
             if profile_data:
-                loaded_profile_context = "\nKnown user profile background data:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in profile_data.items()])
+                loaded_profile_context = "\nKnown user profile records:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in profile_data.items()])
         except Exception: pass
 
+# =====================================================================
+# 🧠 THE ADAPTIVE SAAS SYSTEM PROMPT CORE
+# =====================================================================
 DEFAULT_SYSTEM_PROMPT = [{
     "role": "system", 
-    "content": f"You are AIRA, a professional AI agent built by Shadik. Respond directly and concisely with wit. You are running on Shadik's multi-platform cloud OS node. {loaded_profile_context}"
+    "content": (
+        "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
+        "Respond directly and concisely with adaptive candor and a touch of wit. "
+        f"You are running on Shadik's multi-platform cloud OS node setup. {loaded_profile_context}\n\n"
+        "BALANCED MODE OPERATIONAL RULES:\n"
+        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
+        "2. Natively and autonomously invoke your structural tools whenever Shadik asks for concrete actions "
+        "(like opening websites, checking exact time/date strings, viewing directory files, or running hardware metrics).\n"
+        "3. If the user asks to close, kill, shut down, terminate, or stop an app, browser, or process, you MUST call 'kill_app_process'.\n"
+        "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
+    )
 }]
 
 if os.path.exists(MEMORY_FILE):
@@ -345,11 +384,8 @@ else:
     conversation_history = list(DEFAULT_SYSTEM_PROMPT)
 
 
-# =====================================================================
-# 🌟 LEVEL 10: HEADLESS MULTI-PLATFORM MOBILE CLOUD LISTENER NODE
-# =====================================================================
-def execute_headless_brain_inference(incoming_text: str) -> str:
-    """Processes message requests arriving from mobile endpoints using AIRA's tool-belt logic."""
+def execute_brain_inference(incoming_text: str) -> str:
+    """Processes message requests utilizing AIRA's tool-belt schema engine layer."""
     global conversation_history
     conversation_history = auto_compact_history(conversation_history, client)
     conversation_history.append({"role": "user", "content": incoming_text})
@@ -369,7 +405,6 @@ def execute_headless_brain_inference(incoming_text: str) -> str:
                 try: args = json.loads(tc.function.arguments) if tc.function.arguments else {}
                 except Exception: args = {}
                 
-                # 🛡️ Level 10 Mapping Safety Guardrail Check
                 if not isinstance(args, dict): 
                     args = {}
                     
@@ -384,7 +419,7 @@ def execute_headless_brain_inference(incoming_text: str) -> str:
         if reply:
             conversation_history.append({"role": "assistant", "content": reply})
             return reply
-        return "AIRA Core: Processed successfully without textual return token allocation."
+        return "AIRA Core: Processed successfully."
     except Exception as e:
         return f"AIRA System Exception Core Error: {e}"
 
@@ -392,10 +427,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 10 Multi-Platform Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
+        print("🪐 [Level 12 Multi-Platform Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
         return
         
-    print("🚀 [Level 10 Multi-Platform Node] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 12 Multi-Platform Node] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -411,10 +446,8 @@ def running_multiplatform_listener_loop():
                         user_msg = update["message"]["text"]
                         print(f"📲 Incoming Mobile Packet Signature: '{user_msg}'")
                         
-                        # Route text package down into core inference engines
-                        aira_reply = execute_headless_brain_inference(user_msg)
+                        aira_reply = execute_brain_inference(user_msg)
                         
-                        # Return token response cleanly back to phone screen
                         send_url = f"{base_url}/sendMessage"
                         requests.post(send_url, json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
         except Exception:
@@ -440,7 +473,7 @@ class AIRAGUI:
         
         self.chat_display = scrolledtext.ScrolledText(root, bg="#0d0d11", fg="#e2e2ea", font=("Segoe UI", 11), wrap=tk.WORD, state=tk.DISABLED, bd=0)
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        self.append_chat_message("AIRA", "Grand Horizon Operational. Level 10 Complete. System fully scaled, Shadik.")
+        self.append_chat_message("AIRA", "Level 12 Process Slayer Live. Unified Engine Active, Shadik.")
         
         self.input_frame = tk.Frame(root, bg="#111116")
         self.input_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=15)
@@ -462,7 +495,7 @@ class AIRAGUI:
 
     def update_telemetry_loop(self):
         try:
-            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  ENGINE: ACTIVE MULTI-PLATFORM SERVERS ONLINE")
+            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  ENGINE: PROCESS SLAYER MULTI-PLATFORM ACTIVE")
         except Exception: pass
         self.root.after(3000, self.update_telemetry_loop)
 
@@ -475,14 +508,12 @@ class AIRAGUI:
 
     def process_agent_thought_loop(self, user_text: str):
         global conversation_history
-        reply = execute_headless_brain_inference(user_text)
+        reply = execute_brain_inference(user_text)
         if reply:
             self.root.after(0, lambda: self.append_chat_message("AIRA", reply))
             aira_speak(reply)
 
-# Main Multi-Platform System Orchestrator Coordinates
 if __name__ == "__main__":
-    # 📡 Deploy the Level 10 Mobile Cloud background listening matrix thread safely
     threading.Thread(target=running_multiplatform_listener_loop, daemon=True).start()
     
     import tkinter as tk
