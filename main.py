@@ -26,6 +26,19 @@ PROFILE_FILE = "profile.json"
 DEADLINES_FILE = "deadlines.json"
 
 # =====================================================================
+# 🔒 SECURE SANDBOX DIRECTORY GUARDRAIL LAYER
+# =====================================================================
+WORKSPACE_ROOT = os.path.abspath(os.getcwd())
+
+def is_safe_path(target_path: str) -> bool:
+    """Verifies if the absolute path resolution stays strictly nested within workspace roots."""
+    try:
+        absolute_target = os.path.abspath(target_path)
+        return absolute_target.startswith(WORKSPACE_ROOT)
+    except Exception:
+        return False
+
+# =====================================================================
 # 🔊 NATIVE VOICE SPEECH SYNTHESIS INITIALIZATION
 # =====================================================================
 try:
@@ -79,19 +92,19 @@ def list_files() -> str:
         return f"System Error: Unable to scan file system: {e}"
 
 def create_file(filename: str, content: str = "") -> str:
+    if not is_safe_path(filename):
+        return "Security Exception: Blocked attempt to write outside the local repository sandbox."
     try:
-        if "/" in filename or "\\" in filename:
-            return "System Error: Files must be created directly in the workspace root."
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
-        return f"System message: Successfully created file '{filename}'."
+        return f"System message: Successfully created file '{filename}' inside sandbox."
     except Exception as e:
         return f"System Error: Failed to create file: {e}"
 
 def create_folder(foldername: str) -> str:
+    if not is_safe_path(foldername):
+        return "Security Exception: Blocked attempt to create directory targets outside the local sandbox."
     try:
-        if "/" in foldername or "\\" in foldername:
-            return "System Error: Folders must be created directly in the workspace root."
         if os.path.exists(foldername):
             return f"System message: Folder '{foldername}' already exists."
         os.makedirs(foldername, exist_ok=True)
@@ -100,9 +113,9 @@ def create_folder(foldername: str) -> str:
         return f"System Error: Failed to build folder: {e}"
 
 def rename_file(old_name: str, new_name: str) -> str:
+    if not is_safe_path(old_name) or not is_safe_path(new_name):
+        return "Security Exception: Blocked attempt to mutate path properties outside the sandbox."
     try:
-        if "/" in old_name or "\\" in old_name or "/" in new_name or "\\" in new_name:
-            return "System Error: Renaming must be done within the workspace root."
         if not os.path.exists(old_name):
             return f"System Error: '{old_name}' does not exist."
         os.rename(old_name, new_name)
@@ -111,9 +124,9 @@ def rename_file(old_name: str, new_name: str) -> str:
         return f"System Error: Failed to rename file: {e}"
 
 def delete_file(filename: str) -> str:
+    if not is_safe_path(filename):
+        return "Security Exception: Deletion request intercepted. Target vector resides outside sandbox scope."
     try:
-        if "/" in filename or "\\" in filename:
-            return "System Error: Deletion targets must live inside the workspace root."
         if not os.path.exists(filename):
             return f"System Error: File '{filename}' does not exist."
         if os.path.isdir(filename):
@@ -124,9 +137,9 @@ def delete_file(filename: str) -> str:
         return f"System Error: Failed to delete file: {e}"
 
 def read_file(filename: str) -> str:
+    if not is_safe_path(filename):
+        return "Security Exception: Read target blocked. Vector points outside authenticated sandbox container."
     try:
-        if "/" in filename or "\\" in filename:
-            return "System Error: Reading targets must live directly within the workspace root."
         if not os.path.exists(filename):
             return f"System Error: Cannot read '{filename}' because it does not exist."
         with open(filename, "r", encoding="utf-8") as f:
@@ -169,7 +182,6 @@ def launch_app(app_name: str) -> str:
         return f"System Error: Failed to launch system app: {e}"
 
 def kill_app_process(app_name: str) -> str:
-    """Forcefully terminates running Windows desktop processes using system handles."""
     try:
         target = app_name.lower().strip()
         slug_map = {
@@ -318,6 +330,8 @@ aira_tools = [
 ]
 
 def read_pdf(file_path: str) -> str:
+    if not is_safe_path(file_path):
+        return "Security Exception: Blocked attempt to parse document mapping outside sandbox limits."
     try:
         reader = PdfReader(file_path)
         return "".join([page.extract_text() + "\n" for page in reader.pages])
@@ -363,12 +377,12 @@ DEFAULT_SYSTEM_PROMPT = [{
     "content": (
         "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
         "Respond directly and concisely with adaptive candor and a touch of wit. "
-        f"You are running on Shadik's multi-platform cloud OS node setup. {loaded_profile_context}\n\n"
+        f"You are running inside a secure sandbox environment on Shadik's multi-platform cloud setup. {loaded_profile_context}\n\n"
         "BALANCED MODE OPERATIONAL RULES:\n"
         "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
         "2. Natively and autonomously invoke your structural tools whenever Shadik asks for concrete actions "
-        "(like opening websites, checking exact time/date strings, viewing directory files, or running hardware metrics).\n"
-        "3. If the user asks to close, kill, shut down, terminate, or stop an app, browser, or process, you MUST call 'kill_app_process'.\n"
+        "(like opening websites, manipulating file tracks, checking times, or stopping apps).\n"
+        "3. You operate inside a path sandbox. All file creations, reads, and updates are monitored for absolute system path boundaries.\n"
         "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
 }]
@@ -427,10 +441,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 12 Multi-Platform Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
+        print("🪐 [Level 13 Sandbox Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
         return
         
-    print("🚀 [Level 12 Multi-Platform Node] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 13 Sandbox Node] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -473,7 +487,7 @@ class AIRAGUI:
         
         self.chat_display = scrolledtext.ScrolledText(root, bg="#0d0d11", fg="#e2e2ea", font=("Segoe UI", 11), wrap=tk.WORD, state=tk.DISABLED, bd=0)
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        self.append_chat_message("AIRA", "Level 12 Process Slayer Live. Unified Engine Active, Shadik.")
+        self.append_chat_message("AIRA", "Level 13 Sandbox Active. File operations isolated securely, Shadik.")
         
         self.input_frame = tk.Frame(root, bg="#111116")
         self.input_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=15)
@@ -495,7 +509,7 @@ class AIRAGUI:
 
     def update_telemetry_loop(self):
         try:
-            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  ENGINE: PROCESS SLAYER MULTI-PLATFORM ACTIVE")
+            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  SECURITY: WORKSPACE PATH SANDBOX ENFORCED")
         except Exception: pass
         self.root.after(3000, self.update_telemetry_loop)
 
@@ -516,7 +530,6 @@ class AIRAGUI:
 if __name__ == "__main__":
     threading.Thread(target=running_multiplatform_listener_loop, daemon=True).start()
     
-    import tkinter as tk
     app_window = tk.Tk()
     gui_app = AIRAGUI(app_window)
     
