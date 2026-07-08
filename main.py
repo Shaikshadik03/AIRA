@@ -25,13 +25,10 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Relational Cloud Engine with Auth", version="1.2.0")
+app = FastAPI(title="AIRA OS Data-Isolated Cloud Engine", version="1.3.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
-
-# Global state tracker routing the multi-tenant context boundary across current execution threads
-CURRENT_USER_CONTEXT = "shadik_master"
 
 # =====================================================================
 # 🔐 CRYPTOGRAPHIC PASSWORD HASHING UTILITY
@@ -108,11 +105,15 @@ def init_relational_database():
 init_relational_database()
 
 # =====================================================================
-# 📦 FASTAPI INPUT/OUTPUT VALDIATION VALIDATORS (PYDANTIC SCHEMAS)
+# 📦 FASTAPI INPUT/OUTPUT VALIDATION SCHEMAS (PYDANTIC)
 # =====================================================================
 class UserAuthPayload(BaseModel):
     username: str
     password: str
+
+class ChatPayload(BaseModel):
+    user_id: str
+    message: str
 
 # =====================================================================
 # 🔒 SECURE SANDBOX DIRECTORY GUARDRAIL LAYER
@@ -128,50 +129,22 @@ def is_safe_path(target_path: str) -> bool:
         return False
 
 # =====================================================================
-# 🔊 NATIVE VOICE SPEECH SYNTHESIS INITIALIZATION
-# =====================================================================
-try:
-    voice_engine = pyttsx3.init()
-    voice_engine.setProperty('rate', 185)
-    voices = voice_engine.getProperty('voices')
-    if len(voices) > 1:
-        voice_engine.setProperty('voice', voices[1].id)
-    else:
-        voice_engine.setProperty('voice', voices[0].id)
-    VOICE_AVAILABLE = True
-except Exception as e:
-    print(f"⚠️ Voice engine initialization skipped. Headless audio channel default: {e}")
-    VOICE_AVAILABLE = False
-
-def aira_speak(text: str):
-    """Converts response text tokens into spoken vocal audio outputs safely."""
-    if not VOICE_AVAILABLE or not text:
-        return
-    clean_text = text.replace("<function>", "").replace("</function>", "")
-    clean_text = clean_text.replace("<error_message>", "").replace("</error_message>", "")
-    try:
-        voice_engine.say(clean_text)
-        voice_engine.runAndWait()
-    except Exception:
-        pass
-
-# =====================================================================
-# 🚀 AIRA AGENT ACTION TOOL CORES
+# 🚀 AIRA AGENT MULTI-TENANT ISOLATED ACTION TOOL REGISTRY PATTERNS
 # =====================================================================
 
-def open_website(url: str) -> str:
+def open_website(url: str, **kwargs) -> str:
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
     webbrowser.open(url)
-    return f"System message: Successfully opened {url} in Shadik's desktop browser."
+    return f"System message: Successfully opened {url} in desktop browser."
 
-def get_current_time() -> str:
+def get_current_time(**kwargs) -> str:
     return f"System message: The current local time is {datetime.now().strftime('%I:%M %p')}."
 
-def get_current_date() -> str:
+def get_current_date(**kwargs) -> str:
     return f"System message: Today's date is {datetime.now().strftime('%B %d, %Y')}."
 
-def list_files() -> str:
+def list_files(**kwargs) -> str:
     try:
         files = os.listdir(".")
         if not files:
@@ -180,7 +153,7 @@ def list_files() -> str:
     except Exception as e:
         return f"System Error: Unable to scan file system: {e}"
 
-def create_file(filename: str, content: str = "") -> str:
+def create_file(filename: str, content: str = "", **kwargs) -> str:
     if not is_safe_path(filename):
         return "Security Exception: Blocked attempt to write outside the local repository sandbox."
     try:
@@ -190,7 +163,7 @@ def create_file(filename: str, content: str = "") -> str:
     except Exception as e:
         return f"System Error: Failed to create file: {e}"
 
-def create_folder(foldername: str) -> str:
+def create_folder(foldername: str, **kwargs) -> str:
     if not is_safe_path(foldername):
         return "Security Exception: Blocked attempt to create directory targets outside the local sandbox."
     try:
@@ -201,7 +174,7 @@ def create_folder(foldername: str) -> str:
     except Exception as e:
         return f"System Error: Failed to build folder: {e}"
 
-def rename_file(old_name: str, new_name: str) -> str:
+def rename_file(old_name: str, new_name: str, **kwargs) -> str:
     if not is_safe_path(old_name) or not is_safe_path(new_name):
         return "Security Exception: Blocked attempt to mutate path properties outside the sandbox."
     try:
@@ -212,7 +185,7 @@ def rename_file(old_name: str, new_name: str) -> str:
     except Exception as e:
         return f"System Error: Failed to rename file: {e}"
 
-def delete_file(filename: str) -> str:
+def delete_file(filename: str, **kwargs) -> str:
     if not is_safe_path(filename):
         return "Security Exception: Deletion request intercepted. Target vector resides outside sandbox scope."
     try:
@@ -225,7 +198,7 @@ def delete_file(filename: str) -> str:
     except Exception as e:
         return f"System Error: Failed to delete file: {e}"
 
-def read_file(filename: str) -> str:
+def read_file(filename: str, **kwargs) -> str:
     if not is_safe_path(filename):
         return "Security Exception: Read target blocked. Vector points outside authenticated sandbox container."
     try:
@@ -237,7 +210,7 @@ def read_file(filename: str) -> str:
     except Exception as e:
         return f"System Error: Failed to read text file contents: {e}"
 
-def read_pdf(file_path: str) -> str:
+def read_pdf(file_path: str, **kwargs) -> str:
     if not is_safe_path(file_path):
         return "Security Exception: Blocked attempt to parse document mapping outside sandbox limits."
     try:
@@ -251,44 +224,44 @@ def read_pdf(file_path: str) -> str:
     except Exception as e:
         return f"System Error: Failed to parse PDF document structures: {e}"
 
-def log_expense(amount: float, category: str, description: str) -> str:
+def log_expense(amount: float, category: str, description: str, user_id: str, **kwargs) -> str:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO expenses (user_id, amount, category, description, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (CURRENT_USER_CONTEXT, float(amount), category.lower().strip(), description.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p"))
+            (user_id, float(amount), category.lower().strip(), description.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p"))
         )
         conn.commit()
         conn.close()
-        return f"System message: Cloud database ledger synchronized. Saved {amount} under '{category}' for Context '{CURRENT_USER_CONTEXT}'."
+        return f"System message: Cloud ledger isolated row insertion success. Saved {amount} under '{category}' for Owner Token ID '{user_id}'."
     except Exception as e:
-        return f"System Error: Database transaction update routine aborted: {e}"
+        return f"System Error: Isolated database transaction update routine aborted: {e}"
 
-def get_financial_report() -> str:
+def get_financial_report(user_id: str, **kwargs) -> str:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT amount, category, description FROM expenses WHERE user_id = ?", (CURRENT_USER_CONTEXT,))
+        cursor.execute("SELECT amount, category, description FROM expenses WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
         conn.close()
         
         if not rows:
-            return f"System message: Zero structural ledger entries discovered for User Context '{CURRENT_USER_CONTEXT}'."
+            return f"System message: Zero structural ledger entries discovered for Secure Context footprint: '{user_id}'."
             
         total_spent = sum([r[0] for r in rows])
         breakdown = {}
         for amount, category, desc in rows:
             breakdown[category] = breakdown.get(category, 0.0) + amount
             
-        report_text = f"📊 Cloud Isolated Financial Ledger Dashboard [{CURRENT_USER_CONTEXT}]:\n- Aggregate Spending Account: {total_spent}\n\nItemized Breakdown:\n"
+        report_text = f"📊 Cloud Row-Isolated Financial Balance Sheet [{user_id}]:\n- Aggregate Spending: {total_spent}\n\nItemized Breakdown:\n"
         for category, subtotal in breakdown.items():
             report_text += f"  * {category.title()}: {subtotal}\n"
         return report_text
     except Exception as e:
-        return f"System Error: Analytics pipeline query mapping extraction failed: {e}"
+        return f"System Error: Row-isolated analytics query mapping failed: {e}"
 
-def get_hardware_status() -> str:
+def get_hardware_status(**kwargs) -> str:
     try:
         cpu_load = psutil.cpu_percent(interval=0.1)
         ram_percent = psutil.virtual_memory().percent
@@ -298,7 +271,7 @@ def get_hardware_status() -> str:
     except Exception as e:
         return f"System Error: Failed to poll telemetry: {e}"
 
-def launch_app(app_name: str) -> str:
+def launch_app(app_name: str, **kwargs) -> str:
     try:
         app_lookup = {
             "notepad": "notepad.exe", "calculator": "calc.exe", "paint": "mspaint.exe",
@@ -321,7 +294,7 @@ def launch_app(app_name: str) -> str:
     except Exception as e:
         return f"System Error: Failed to launch system app: {e}"
 
-def kill_app_process(app_name: str) -> str:
+def kill_app_process(app_name: str, **kwargs) -> str:
     try:
         target = app_name.lower().strip()
         slug_map = {
@@ -345,42 +318,42 @@ def kill_app_process(app_name: str) -> str:
     except Exception as e:
         return f"System Error: Process slayer pipeline failed: {e}"
 
-def save_profile_fact(fact_key: str, fact_value: str) -> str:
+def save_profile_fact(fact_key: str, fact_value: str, user_id: str, **kwargs) -> str:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO profile_memory (user_id, fact_key, fact_value) VALUES (?, ?, ?)",
-            (CURRENT_USER_CONTEXT, fact_key.lower().strip(), fact_value.strip())
+            (user_id, fact_key.lower().strip(), fact_value.strip())
         )
         conn.commit()
         conn.close()
-        return f"System message: Long-term profile memory row synchronized: '{fact_key}' = '{fact_value}'."
+        return f"System message: Secure long-term row memory synchronized: '{fact_key}' = '{fact_value}'."
     except Exception as e:
-        return f"System Error: Core transactional write operation aborted: {e}"
+        return f"System Error: Context-isolated write operation aborted: {e}"
 
-def read_profile_facts() -> str:
+def read_profile_facts(user_id: str, **kwargs) -> str:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (CURRENT_USER_CONTEXT,))
+        cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
         conn.close()
         
         if not rows:
-            return f"System message: Long-term configuration records map is entirely empty for Context '{CURRENT_USER_CONTEXT}'."
-        return f"Long-Term Cloud Database Facts [{CURRENT_USER_CONTEXT}]:\n" + "\n".join([f"- {k.title()}: {v}" for k, v in rows])
+            return f"System message: Long-term configuration metadata registry map is empty for owner footprint Context: '{user_id}'."
+        return f"Long-Term Cloud Database Facts [{user_id}]:\n" + "\n".join([f"- {k.title()}: {v}" for k, v in rows])
     except Exception as e:
-        return f"System Error: Failed to parse relational context boundaries: {e}"
+        return f"System Error: Failed to extract row-isolated profile arrays: {e}"
 
-def add_deadline(event_name: str, target_date: str) -> str:
+def add_deadline(event_name: str, target_date: str, user_id: str, **kwargs) -> str:
     try:
         datetime.strptime(target_date.strip(), "%Y-%m-%d")
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO deadlines (user_id, event_name, target_date) VALUES (?, ?, ?)",
-            (CURRENT_USER_CONTEXT, event_name.strip(), target_date.strip())
+            (user_id, event_name.strip(), target_date.strip())
         )
         conn.commit()
         conn.close()
@@ -390,19 +363,19 @@ def add_deadline(event_name: str, target_date: str) -> str:
     except Exception as e:
         return f"System Error: Failed to update database scheduler structures: {e}"
 
-def get_countdown_alerts() -> str:
+def get_countdown_alerts(user_id: str, **kwargs) -> str:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT event_name, target_date FROM deadlines WHERE user_id = ?", (CURRENT_USER_CONTEXT,))
+        cursor.execute("SELECT event_name, target_date FROM deadlines WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
         conn.close()
         
         if not rows:
-            return f"System message: No milestone tracking metrics registered for Context '{CURRENT_USER_CONTEXT}'."
+            return f"System message: No milestone tracking metrics registered for account row isolation: '{user_id}'."
             
         today = datetime.now().date()
-        countdown_report = [f"Live Target Countdown Registers [{CURRENT_USER_CONTEXT}]:"]
+        countdown_report = [f"Live Target Countdown Registers [{user_id}]:"]
         for event, date_str in rows:
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             days_left = (target_date - today).days
@@ -414,9 +387,9 @@ def get_countdown_alerts() -> str:
                 countdown_report.append(f"- {event}: Passed {abs(days_left)} days ago ({date_str})")
         return "\n".join(countdown_report)
     except Exception as e:
-        return f"System Error: Failed to resolve structural chronological row variations: {e}"
+        return f"System Error: Failed to compute chronological data parameters: {e}"
 
-def search_internet(query: str) -> str:
+def search_internet(query: str, **kwargs) -> str:
     try:
         with DDGS() as ddgs:
             results = [r for r in ddgs.text(query, max_results=4)]
@@ -429,7 +402,7 @@ def search_internet(query: str) -> str:
     except Exception as e:
         return f"System Error: Failed to complete internet search: {e}"
 
-def trigger_cloud_integration(endpoint_url: str, payload_json_string: str) -> str:
+def trigger_cloud_integration(endpoint_url: str, payload_json_string: str, **kwargs) -> str:
     try:
         data_packet = json.loads(payload_json_string)
         headers = {"Content-Type": "application/json", "User-Agent": "AIRA-OS-Agent-Core"}
@@ -441,7 +414,7 @@ def trigger_cloud_integration(endpoint_url: str, payload_json_string: str) -> st
         return f"System Error: Cloud integration failed: {e}"
 
 
-# Scalable Tool Registries Mapping Directories
+# Scalable Multi-Tenant Safe Function Core Registries Pointer Dictionary
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
@@ -479,33 +452,31 @@ aira_tools = [
 ]
 
 # =====================================================================
-# 🧠 MUTLI-TENANT CONVERSATION INFRASTRUCTURE MANAGEMENT LOOPS
+# 🧠 DYNAMIC USER-ISOLATED INFERENCE CORE PIPELINE
 # =====================================================================
 
 def fetch_isolated_user_history(user_id: str):
-    """Loads text thread rows from database structure to construct structural inference arrays."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT role, content, tool_calls FROM history WHERE user_id = ? ORDER BY id ASC", (user_id,))
     rows = cursor.fetchall()
     
-    # Load dynamic profile facts to pass directly into core instructions
     cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (user_id,))
     facts = cursor.fetchall()
     conn.close()
     
     profile_ctx = ""
     if facts:
-        profile_ctx = "\nKnown target user context parameters:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in facts])
+        profile_ctx = "\nAuthenticated occupant row metadata properties:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in facts])
         
     system_prompt_string = (
         "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
         "Respond directly and concisely with adaptive candor and a touch of wit. "
-        f"You are running inside a secure, relational database isolated space channel node. Owner token reference: {user_id}. {profile_ctx}\n\n"
-        "BALANCED MODE OPERATIONAL RULES:\n"
+        f"You are running inside a multi-tenant web server router. Active session user footprint token: {user_id}. {profile_ctx}\n\n"
+        "ROW-ISOLATION SECURITY OPERATIONAL RULES:\n"
         "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
-        "2. Natively and autonomously invoke your structural tools whenever the user asks for concrete actions.\n"
-        "3. You operate inside an isolated relational database layer. Flat file JSON components are completely deprecated.\n"
+        "2. Natively invoke structural action tools autonomously whenever requested by user intents.\n"
+        "3. You operate within a strict multi-tenant framework. Do not pollute overlapping cross-tenant session arrays.\n"
         "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
     
@@ -515,7 +486,7 @@ def fetch_isolated_user_history(user_id: str):
         return baseline_prompt
         
     history = list(baseline_prompt)
-    for role, content, tc_json in rows[-20:]:  # Keeps sliding performance buffer window maxed at 20 message logs
+    for role, content, tc_json in rows[-20:]:
         msg = {"role": role, "content": content}
         if tc_json:
             msg["tool_calls"] = json.loads(tc_json)
@@ -523,7 +494,6 @@ def fetch_isolated_user_history(user_id: str):
     return history
 
 def log_database_message(user_id: str, role: str, content: str, tool_calls=None):
-    """Commits new interaction data vectors into the SQL backend architecture sheets."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -537,12 +507,11 @@ def log_database_message(user_id: str, role: str, content: str, tool_calls=None)
     except Exception as e:
         print(f"⚠️ History tracking log anomaly detected: {e}")
 
-def execute_brain_inference(incoming_text: str) -> str:
-    """Processes message requests across multi-user environment boundaries."""
-    global CURRENT_USER_CONTEXT
-    history_array = fetch_isolated_user_history(CURRENT_USER_CONTEXT)
+def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
+    """Processes message requests across strictly isolated user row context boundaries."""
+    history_array = fetch_isolated_user_history(session_user_id)
     history_array.append({"role": "user", "content": incoming_text})
-    log_database_message(CURRENT_USER_CONTEXT, "user", incoming_text)
+    log_database_message(session_user_id, "user", incoming_text)
     
     try:
         response = client.chat.completions.create(
@@ -555,7 +524,7 @@ def execute_brain_inference(incoming_text: str) -> str:
                 serialized_calls.append({"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}})
             
             history_array.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
-            log_database_message(CURRENT_USER_CONTEXT, "assistant", msg.content or "", serialized_calls)
+            log_database_message(session_user_id, "assistant", msg.content or "", serialized_calls)
             
             for tc in msg.tool_calls:
                 name = tc.function.name
@@ -564,11 +533,14 @@ def execute_brain_inference(incoming_text: str) -> str:
                 
                 if not isinstance(args, dict): 
                     args = {}
+                
+                # Secure parameter packing injection: Force the session user_id directly into tool arguments mapping!
+                args["user_id"] = session_user_id
                     
                 if name in tool_registry:
                     res = tool_registry[name](**args)
                     history_array.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
-                    log_database_message(CURRENT_USER_CONTEXT, "tool", res)
+                    log_database_message(session_user_id, "tool", res)
             
             final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=history_array)
             reply = final_res.choices[0].message.content
@@ -576,21 +548,20 @@ def execute_brain_inference(incoming_text: str) -> str:
             reply = msg.content
             
         if reply:
-            log_database_message(CURRENT_USER_CONTEXT, "assistant", reply)
+            log_database_message(session_user_id, "assistant", reply)
             return reply
-        return "AIRA Core Node: Transaction isolated successfully."
+        return "AIRA Core Node: Transaction context isolated successfully."
     except Exception as e:
-        return f"AIRA Relational Database Exception Error: {e}"
+        return f"AIRA Relational Isolation Layer Exception Error: {e}"
 
 def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
-    global CURRENT_USER_CONTEXT
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 18 Auth Server] Telegram Listener Node Standby: Token missing.")
+        print("🪐 [Level 19 Data Isolation] Telegram Listener Node Standby: Token missing.")
         return
         
-    print("🚀 [Level 18 Auth Server] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 19 Data Isolation] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -605,11 +576,11 @@ def running_multiplatform_listener_loop():
                         chat_id = str(update["message"]["chat"]["id"])
                         user_msg = update["message"]["text"]
                         
-                        # MULTI-TENANT ISOLATION ACTIVATED: Lock current operations to the unique messaging user ID!
-                        CURRENT_USER_CONTEXT = f"telegram_{chat_id}"
-                        print(f"📲 Isolated Wireless User Packet Caught: '{user_msg}' from account '{CURRENT_USER_CONTEXT}'")
+                        # MULTI-TENANT ROW SEPARATION: Bind this thread's downstream queries to this exact Telegram user ID string!
+                        active_scoped_user = f"telegram_{chat_id}"
+                        print(f"📲 Isolated Wireless User Packet Caught: '{user_msg}' from profile '{active_scoped_user}'")
                         
-                        aira_reply = execute_brain_inference(user_msg)
+                        aira_reply = execute_brain_inference(user_msg, session_user_id=active_scoped_user)
                         
                         send_url = f"{base_url}/sendMessage"
                         requests.post(send_url, json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
@@ -618,94 +589,37 @@ def running_multiplatform_listener_loop():
         time.sleep(1)
 
 # =====================================================================
-# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH AUTH CONTROLS)
+# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE
 # =====================================================================
 
 @app.get("/")
 async def serve_root_api_healthcheck():
     return {
         "status": "online",
-        "engine": "AIRA OS SaaS Relational Engine with Authentication",
+        "engine": "AIRA OS SaaS Isolated Core",
         "timestamp": datetime.now().isoformat(),
-        "database_status": "connected_sqlite3",
-        "active_sandbox": WORKSPACE_ROOT
+        "sandbox_root": WORKSPACE_ROOT,
+        "telemetry": {
+            "cpu_utilization_percent": psutil.cpu_percent(),
+            "memory_utilization_percent": psutil.virtual_memory().percent
+        }
     }
 
-@app.post("/auth/signup")
-async def register_saas_user(payload: UserAuthPayload):
-    """Generates a secure, hashed account record matching profile keys within our relational table."""
-    username_cleaned = payload.username.strip().lower()
-    if not username_cleaned or not payload.password:
-        raise HTTPException(status_code=400, detail="Signup verification parameter validation failed.")
-    
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        
-        # Check if username collision already exists
-        cursor.execute("SELECT user_id FROM users WHERE username = ?", (username_cleaned,))
-        if cursor.fetchone():
-            conn.close()
-            raise HTTPException(status_code=400, detail="SaaS account registration aborted. Username selection already taken.")
-            
-        generated_user_id = f"user_{int(time.time())}"
-        hashed_pw = hash_password(payload.password)
-        
-        cursor.execute(
-            "INSERT INTO users (user_id, username, hashed_password, created_at) VALUES (?, ?, ?, ?)",
-            (generated_user_id, username_cleaned, hashed_pw, datetime.now().isoformat())
-        )
-        conn.commit()
-        conn.close()
-        return {"status": "success", "message": "Account initialized.", "assigned_user_id": generated_user_id}
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database transaction signature initialization failed: {e}")
-
-@app.post("/auth/login")
-async def login_saas_user(payload: UserAuthPayload):
-    """Validates password signature strings against relational hash locks."""
-    username_cleaned = payload.username.strip().lower()
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id, hashed_password FROM users WHERE username = ?", (username_cleaned,))
-        record = cursor.fetchone()
-        conn.close()
-        
-        if not record:
-            raise HTTPException(status_code=401, detail="Authentication failed. Invalid credential keys.")
-            
-        user_id, stored_hashed_password = record
-        incoming_hashed_pw = hash_password(payload.password)
-        
-        if incoming_hashed_pw != stored_hashed_password:
-            raise HTTPException(status_code=401, detail="Authentication failed. Password validation signature mismatch.")
-            
-        return {"status": "authenticated", "authenticated_user_id": user_id, "message": "Session token unlocked successfully."}
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Authentication core layer handling error: {e}")
-
 @app.post("/chat")
-async def serve_inference_endpoint(request: Request):
-    global CURRENT_USER_CONTEXT
+async def serve_inference_endpoint(payload: ChatPayload):
+    """Secure inbound programmatic routing connector handling context-isolated request blocks."""
     try:
-        body = await request.json()
-        user_message = body.get("message", "").strip()
+        target_user = payload.user_id.strip().lower()
+        user_message = payload.message.strip()
         
-        # Pull optional routing identification keys passed from frontends to separate browser users
-        CURRENT_USER_CONTEXT = body.get("user_id", "shadik_master").strip().lower()
+        if not target_user or not user_message:
+            raise HTTPException(status_code=400, detail="Inbound data packet missing structural validation properties.")
         
-        if not user_message:
-            raise HTTPException(status_code=400, detail="Inbound data packet missing 'message' body value parameters.")
-        
-        agent_reply = execute_brain_inference(user_message)
-        return {"sender": "AIRA", "response": agent_reply, "user_context_bound": CURRENT_USER_CONTEXT}
+        # Trigger inference explicitly isolated to the user_id passed via this specific HTTP payload request
+        agent_reply = execute_brain_inference(user_message, session_user_id=target_user)
+        return {"sender": "AIRA", "response": agent_reply, "user_context_bound": target_user, "timestamp": datetime.now().isoformat()}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"API Engine Database Exception: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"API Engine Isolated Database Exception: {e}"})
 
 if __name__ == "__main__":
     # Start the multi-tenant message parser background processing loop
@@ -713,5 +627,5 @@ if __name__ == "__main__":
     
     # Run the production API server engine node
     import uvicorn
-    print("⚡ Deploying Authenticated Multi-Tenant Node Server Framework...")
+    print("⚡ Deploying Explicitly Parameter-Isolated Multi-Tenant Node Server...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
