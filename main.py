@@ -7,6 +7,7 @@ import time
 import sqlite3
 import hashlib
 import shutil
+import re
 from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
@@ -26,14 +27,14 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Protected Production Server", version="1.10.0")
+app = FastAPI(title="AIRA OS Shielded Production Server", version="1.11.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
 BACKUP_DIR = "backups"
 
 # =====================================================================
-# 🛡️ IN-MEMORY SLIDING RATE LIMITING TRANSACTION STORE
+# 🛡️ PRODUCTION SECURITY LAYER: PAYLOAD SANITIZER & ANTI-SPAM TUNNELS
 # =====================================================================
 RATE_LIMIT_STORE = {}  # Maps user_id strings -> list of absolute timestamps
 
@@ -42,15 +43,21 @@ def check_rate_limit_throttle(user_id: str, max_requests: int = 5, window_second
     now = time.time()
     if user_id not in RATE_LIMIT_STORE:
         RATE_LIMIT_STORE[user_id] = []
-        
-    # Filter out historical timestamp records outside our active security sliding window
     RATE_LIMIT_STORE[user_id] = [t for t in RATE_LIMIT_STORE[user_id] if now - t < window_seconds]
-    
     if len(RATE_LIMIT_STORE[user_id]) >= max_requests:
-        return False  # Target user is officially restricted and throttled
-        
+        return False  # Throttled
     RATE_LIMIT_STORE[user_id].append(now)
-    return True  # Request meets compliance parameters
+    return True
+
+def sanitize_input_string(text: str) -> str:
+    """Cryptographically scrubs out structural script brackets to prevent injection strings."""
+    if not text:
+        return ""
+    # Strip dangerous HTML script tags completely
+    scrubbed = re.sub(r"<script.*?>.*?</script.*?>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    # Remove loose structural tag brackets to neutralize markup injections
+    scrubbed = scrubbed.replace("<", "&lt;").replace(">", "&gt;")
+    return scrubbed.strip()
 
 # =====================================================================
 # 🔐 CRYPTOGRAPHIC PASSWORD HASHING UTILITY
@@ -753,7 +760,6 @@ def fetch_isolated_user_history(user_id: str):
     )
     
     baseline_prompt = [{"role": "system", "content": system_prompt_string}]
-    
     if not rows:
         return baseline_prompt
         
@@ -781,13 +787,16 @@ def log_database_message(user_id: str, role: str, content: str, tool_calls=None)
 
 def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
     """Processes message requests across strictly isolated user row context boundaries."""
-    # SECURITY GATEWAY: Intercept and reject requests exceeding 5 calls per minute!
+    # SECURITY INTERCEPTOR 1: Rate Limiting
     if not check_rate_limit_throttle(session_user_id, max_requests=5, window_seconds=60):
         return "⚠️ AIRA Core Firewall Notice: Rate Limit Triggered! Access restricted to 5 tasks per minute to secure system threads."
 
+    # SECURITY INTERCEPTOR 2: Inbound Input Sanitizer Layer
+    sanitized_text = sanitize_input_string(incoming_text)
+
     history_array = fetch_isolated_user_history(session_user_id)
-    history_array.append({"role": "user", "content": incoming_text})
-    log_database_message(session_user_id, "user", incoming_text)
+    history_array.append({"role": "user", "content": sanitized_text})
+    log_database_message(session_user_id, "user", sanitized_text)
     
     try:
         response = client.chat.completions.create(
@@ -873,7 +882,7 @@ async def serve_root_api_healthcheck():
         "engine": "AIRA OS SaaS Protected Security Core",
         "timestamp": datetime.now().isoformat(),
         "sandbox_root": WORKSPACE_ROOT,
-        "firewall_rules": "rate_limiting_active",
+        "firewall_rules": "rate_limiting_and_sanitization_active",
         "telemetry": {
             "cpu_utilization_percent": psutil.cpu_percent(),
             "memory_utilization_percent": psutil.virtual_memory().percent
@@ -882,7 +891,8 @@ async def serve_root_api_healthcheck():
 
 @app.post("/auth/signup")
 async def register_saas_user(payload: UserAuthPayload):
-    username_cleaned = payload.username.strip().lower()
+    # Scrub auth payload parameters fields for structural safety strings
+    username_cleaned = sanitize_input_string(payload.username).lower().strip()
     if not username_cleaned or not payload.password:
         raise HTTPException(status_code=400, detail="Signup verification parameter validation failed.")
     conn = sqlite3.connect(DB_FILE)
@@ -900,7 +910,7 @@ async def register_saas_user(payload: UserAuthPayload):
 
 @app.post("/auth/login")
 async def login_saas_user(payload: UserAuthPayload):
-    username_cleaned = payload.username.strip().lower()
+    username_cleaned = sanitize_input_string(payload.username).lower().strip()
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, hashed_password FROM users WHERE username = ?", (username_cleaned,))
@@ -916,7 +926,7 @@ async def login_saas_user(payload: UserAuthPayload):
 @app.post("/chat")
 async def serve_inference_endpoint(payload: ChatPayload):
     try:
-        target_user = payload.user_id.strip().lower()
+        target_user = sanitize_input_string(payload.user_id).strip().lower()
         user_message = payload.message.strip()
         if not target_user or not user_message:
             raise HTTPException(status_code=400, detail="Inbound data packet missing structural validation properties.")
@@ -932,5 +942,5 @@ if __name__ == "__main__":
     # Run the production API server engine node
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Production-Optimized Protected Firewall Server on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Production-Optimized Shielded Server on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
