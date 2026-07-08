@@ -4,6 +4,7 @@ import threading
 import webbrowser
 import requests
 import time
+import sqlite3
 from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
@@ -12,7 +13,6 @@ from pypdf import PdfReader
 import psutil
 import pyttsx3
 
-# Import modern asynchronous high-speed web framework modules
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -22,14 +22,71 @@ load_dotenv()
 # Initialize the Groq cloud communication client
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# Persistent Memory Storage Pointers
-MEMORY_FILE = "memory.json"
-PROFILE_FILE = "profile.json"
-DEADLINES_FILE = "deadlines.json"
-EXPENSES_FILE = "expenses.json"
-
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Engine Core API", version="1.0.0")
+app = FastAPI(title="AIRA OS Relational Cloud Engine", version="1.1.0")
+
+# Relational Database Storage Pointer
+DB_FILE = "aira_cloud_node.db"
+
+# Global state tracker routing the multi-tenant context boundary across current execution threads
+CURRENT_USER_CONTEXT = "shadik_master"
+
+# =====================================================================
+# 🗄️ RELATIONAL DATABASE INITIALIZATION & SCHEMA SETUP
+# =====================================================================
+def init_relational_database():
+    """Compiles local SQL storage structures to handle multi-tenant isolation schemas safely."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # User Profile Memory Table Layout
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS profile_memory (
+            user_id TEXT,
+            fact_key TEXT,
+            fact_value TEXT,
+            PRIMARY KEY (user_id, fact_key)
+        )
+    """)
+    
+    # Financial Ledger Expenditure Table Layout
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            amount REAL,
+            category TEXT,
+            description TEXT,
+            timestamp TEXT
+        )
+    """)
+    
+    # Task Planner Calendar Deadlines Table Layout
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS deadlines (
+            user_id TEXT,
+            event_name TEXT,
+            target_date TEXT,
+            PRIMARY KEY (user_id, event_name)
+        )
+    """)
+    
+    # Multi-User Persistent Conversational History Logs
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            role TEXT,
+            content TEXT,
+            tool_calls TEXT,
+            timestamp TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# Fire up relational schemas on core runtime initialization
+init_relational_database()
 
 # =====================================================================
 # 🔒 SECURE SANDBOX DIRECTORY GUARDRAIL LAYER
@@ -73,7 +130,7 @@ def aira_speak(text: str):
         pass
 
 # =====================================================================
-# 🚀 AIRA AGENT ACTION TOOL CORES
+# 🚀 AIRA AGENT ACTION TOOL CORES (RE-ENGINEERED FOR SQL TRANSACTIONS)
 # =====================================================================
 
 def open_website(url: str) -> str:
@@ -170,47 +227,40 @@ def read_pdf(file_path: str) -> str:
 
 def log_expense(amount: float, category: str, description: str) -> str:
     try:
-        ledger = []
-        if os.path.exists(EXPENSES_FILE):
-            with open(EXPENSES_FILE, "r", encoding="utf-8") as f:
-                try: ledger = json.load(f)
-                except Exception: ledger = []
-        
-        transaction = {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
-            "amount": float(amount),
-            "category": category.lower().strip(),
-            "description": description.strip()
-        }
-        ledger.append(transaction)
-        
-        with open(EXPENSES_FILE, "w", encoding="utf-8") as f:
-            json.dump(ledger, f, indent=4)
-        return f"System message: Financial ledger updated cleanly! Logged {amount} under '{category}'."
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO expenses (user_id, amount, category, description, timestamp) VALUES (?, ?, ?, ?, ?)",
+            (CURRENT_USER_CONTEXT, float(amount), category.lower().strip(), description.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p"))
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Cloud database ledger synchronized. Saved {amount} under '{category}' for Context '{CURRENT_USER_CONTEXT}'."
     except Exception as e:
-        return f"System Error: Financial data append routine failed: {e}"
+        return f"System Error: Database transaction update routine aborted: {e}"
 
 def get_financial_report() -> str:
     try:
-        if not os.path.exists(EXPENSES_FILE):
-            return "System message: Financial data registers are currently empty. No transactions logged."
-        with open(EXPENSES_FILE, "r", encoding="utf-8") as f:
-            ledger = json.load(f)
-        if not ledger:
-            return "System message: Financial database sheets contain zero recorded logs."
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT amount, category, description FROM expenses WHERE user_id = ?", (CURRENT_USER_CONTEXT,))
+        rows = cursor.fetchall()
+        conn.close()
         
-        total_spent = sum([item["amount"] for item in ledger])
-        breakdown = {}
-        for item in ledger:
-            cat = item["category"]
-            breakdown[cat] = breakdown.get(cat, 0.0) + item["amount"]
+        if not rows:
+            return f"System message: Zero structural ledger entries discovered for User Context '{CURRENT_USER_CONTEXT}'."
             
-        report_text = f"📊 Live Financial Accountability Balance Sheet:\n- Overall Aggregate Spending: {total_spent}\n\nCategory Summaries:\n"
+        total_spent = sum([r[0] for r in rows])
+        breakdown = {}
+        for amount, category, desc in rows:
+            breakdown[category] = breakdown.get(category, 0.0) + amount
+            
+        report_text = f"📊 Cloud Isolated Financial Ledger Dashboard [{CURRENT_USER_CONTEXT}]:\n- Aggregate Spending Account: {total_spent}\n\nItemized Breakdown:\n"
         for category, subtotal in breakdown.items():
             report_text += f"  * {category.title()}: {subtotal}\n"
         return report_text
     except Exception as e:
-        return f"System Error: Failed to compute sheet analytics matrices: {e}"
+        return f"System Error: Analytics pipeline query mapping extraction failed: {e}"
 
 def get_hardware_status() -> str:
     try:
@@ -271,58 +321,63 @@ def kill_app_process(app_name: str) -> str:
 
 def save_profile_fact(fact_key: str, fact_value: str) -> str:
     try:
-        profile = {}
-        if os.path.exists(PROFILE_FILE):
-            with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-                try: profile = json.load(f)
-                except Exception: profile = {}
-        profile[fact_key.lower().strip()] = fact_value.strip()
-        with open(PROFILE_FILE, "w", encoding="utf-8") as f:
-            json.dump(profile, f, indent=4)
-        return f"System message: Long-term fact securely saved: '{fact_key}' = '{fact_value}'."
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO profile_memory (user_id, fact_key, fact_value) VALUES (?, ?, ?)",
+            (CURRENT_USER_CONTEXT, fact_key.lower().strip(), fact_value.strip())
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Long-term profile memory row synchronized: '{fact_key}' = '{fact_value}'."
     except Exception as e:
-        return f"System Error: Failed to write to memory: {e}"
+        return f"System Error: Core transactional write operation aborted: {e}"
 
 def read_profile_facts() -> str:
     try:
-        if not os.path.exists(PROFILE_FILE):
-            return "System message: Long-term profile memory database is empty."
-        with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-            profile = json.load(f)
-        if not profile:
-            return "System message: Long-term profile memory database is empty."
-        return "Long-Term Database Facts:\n" + "\n".join([f"- {k.title()}: {v}" for k, v in profile.items()])
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (CURRENT_USER_CONTEXT,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return f"System message: Long-term configuration records map is entirely empty for Context '{CURRENT_USER_CONTEXT}'."
+        return f"Long-Term Cloud Database Facts [{CURRENT_USER_CONTEXT}]:\n" + "\n".join([f"- {k.title()}: {v}" for k, v in rows])
     except Exception as e:
-        return f"System Error: Failed to parse long-term registers: {e}"
+        return f"System Error: Failed to parse relational context boundaries: {e}"
 
 def add_deadline(event_name: str, target_date: str) -> str:
     try:
         datetime.strptime(target_date.strip(), "%Y-%m-%d")
-        deadlines = {}
-        if os.path.exists(DEADLINES_FILE):
-            with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
-                try: deadlines = json.load(f)
-                except Exception: deadlines = {}
-        deadlines[event_name.strip()] = target_date.strip()
-        with open(DEADLINES_FILE, "w", encoding="utf-8") as f:
-            json.dump(deadlines, f, indent=4)
-        return f"System message: Deadline registered successfully for '{event_name}' on {target_date}."
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO deadlines (user_id, event_name, target_date) VALUES (?, ?, ?)",
+            (CURRENT_USER_CONTEXT, event_name.strip(), target_date.strip())
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Dynamic target date locked successfully for '{event_name}' on {target_date}."
     except ValueError:
         return "System Error: Invalid layout string format. Target dates must be exactly YYYY-MM-DD."
     except Exception as e:
-        return f"System Error: Failed to update scheduler: {e}"
+        return f"System Error: Failed to update database scheduler structures: {e}"
 
 def get_countdown_alerts() -> str:
     try:
-        if not os.path.exists(DEADLINES_FILE):
-            return "System message: No target deadlines are registered inside the planner profile."
-        with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
-            deadlines = json.load(f)
-        if not deadlines:
-            return "System message: No target deadlines are currently tracking."
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT event_name, target_date FROM deadlines WHERE user_id = ?", (CURRENT_USER_CONTEXT,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return f"System message: No milestone tracking metrics registered for Context '{CURRENT_USER_CONTEXT}'."
+            
         today = datetime.now().date()
-        countdown_report = ["Live Scheduler Countdown Alerts:"]
-        for event, date_str in deadlines.items():
+        countdown_report = [f"Live Target Countdown Registers [{CURRENT_USER_CONTEXT}]:"]
+        for event, date_str in rows:
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             days_left = (target_date - today).days
             if days_left > 0:
@@ -333,7 +388,7 @@ def get_countdown_alerts() -> str:
                 countdown_report.append(f"- {event}: Passed {abs(days_left)} days ago ({date_str})")
         return "\n".join(countdown_report)
     except Exception as e:
-        return f"System Error: Failed to process timeline array differences: {e}"
+        return f"System Error: Failed to resolve structural chronological row variations: {e}"
 
 def search_internet(query: str) -> str:
     try:
@@ -397,81 +452,84 @@ aira_tools = [
     {"type": "function", "function": {"name": "trigger_cloud_integration", "description": "Transmits JSON parameters dynamically to external cloud webhooks.", "parameters": {"type": "object", "properties": {"endpoint_url": {"type": "string"}, "payload_json_string": {"type": "string"}}, "required": ["endpoint_url", "payload_json_string"]}}}
 ]
 
-def auto_compact_history(history, groq_client):
-    if len(history) <= 20:
-        return history
-    try:
-        system_prompt = history[0]
-        slice_to_compress = history[1:-4]  
-        recent_messages = history[-4:]
-        raw_text = ""
-        for msg in slice_to_compress:
-            content = msg.get("content") or ""
-            if msg.get("tool_calls"): content += " [Tool Use Invocations]"
-            raw_text += f"{msg.get('role').upper()}: {content}\n"
-        compaction_prompt = f"Condense this conversation timeline history entirely into a single narrative paragraph:\n\n{raw_text}"
-        response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": compaction_prompt}]
-        )
-        return [system_prompt, {"role": "system", "content": f"Summary profile of previous interactions: {response.choices[0].message.content}"}] + recent_messages
-    except Exception:
-        return history
-
-# Load baseline profile records configuration layouts
-loaded_profile_context = ""
-if os.path.exists(PROFILE_FILE):
-    with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-        try:
-            profile_data = json.load(f)
-            if profile_data:
-                loaded_profile_context = "\nKnown user profile records:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in profile_data.items()])
-        except Exception: pass
-
 # =====================================================================
-# 🧠 THE ADAPTIVE SAAS SYSTEM PROMPT CORE
+# 🧠 MUTLI-TENANT CONVERSATION INFRASTRUCTURE MANAGEMENT LOOPS
 # =====================================================================
-DEFAULT_SYSTEM_PROMPT = [{
-    "role": "system", 
-    "content": (
+
+def fetch_isolated_user_history(user_id: str):
+    """Loads text thread rows from database structure to construct structural inference arrays."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT role, content, tool_calls FROM history WHERE user_id = ? ORDER BY id ASC", (user_id,))
+    rows = cursor.fetchall()
+    
+    # Load dynamic profile facts to pass directly into core instructions
+    cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (user_id,))
+    facts = cursor.fetchall()
+    conn.close()
+    
+    profile_ctx = ""
+    if facts:
+        profile_ctx = "\nKnown target user context parameters:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in facts])
+        
+    system_prompt_string = (
         "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
         "Respond directly and concisely with adaptive candor and a touch of wit. "
-        f"You are running inside a secure sandbox environment on Shadik's multi-platform cloud setup. {loaded_profile_context}\n\n"
+        f"You are running inside a secure, relational database isolated space channel node. Owner token reference: {user_id}. {profile_ctx}\n\n"
         "BALANCED MODE OPERATIONAL RULES:\n"
         "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
-        "2. Natively and autonomously invoke your structural tools whenever Shadik asks for concrete actions "
-        "(like opening websites, manipulating files, logging finances, checking times, or stopping apps).\n"
-        "3. You operate inside an isolated path sandbox server framework. All file systems and ledger operations are tracked.\n"
+        "2. Natively and autonomously invoke your structural tools whenever the user asks for concrete actions.\n"
+        "3. You operate inside an isolated relational database layer. Flat file JSON components are completely deprecated.\n"
         "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
-}]
+    
+    baseline_prompt = [{"role": "system", "content": system_prompt_string}]
+    
+    if not rows:
+        return baseline_prompt
+        
+    history = list(baseline_prompt)
+    for role, content, tc_json in rows[-20:]:  # Keeps sliding performance buffer window maxed at 20 message logs
+        msg = {"role": role, "content": content}
+        if tc_json:
+            msg["tool_calls"] = json.loads(tc_json)
+        history.append(msg)
+    return history
 
-if os.path.exists(MEMORY_FILE):
-    with open(MEMORY_FILE, "r") as f:
-        try:
-            conversation_history = json.load(f)
-            if conversation_history and conversation_history[0]["role"] == "system":
-                conversation_history[0] = DEFAULT_SYSTEM_PROMPT[0]
-        except Exception: conversation_history = list(DEFAULT_SYSTEM_PROMPT)
-else:
-    conversation_history = list(DEFAULT_SYSTEM_PROMPT)
-
+def log_database_message(user_id: str, role: str, content: str, tool_calls=None):
+    """Commits new interaction data vectors into the SQL backend architecture sheets."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        tc_payload = json.dumps(tool_calls) if tool_calls else None
+        cursor.execute(
+            "INSERT INTO history (user_id, role, content, tool_calls, timestamp) VALUES (?, ?, ?, ?, ?)",
+            (user_id, role, content, tc_payload, datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ History tracking log anomaly detected: {e}")
 
 def execute_brain_inference(incoming_text: str) -> str:
-    """Processes message requests utilizing AIRA's tool-belt schema engine layer."""
-    global conversation_history
-    conversation_history = auto_compact_history(conversation_history, client)
-    conversation_history.append({"role": "user", "content": incoming_text})
+    """Processes message requests across multi-user environment boundaries."""
+    global CURRENT_USER_CONTEXT
+    history_array = fetch_isolated_user_history(CURRENT_USER_CONTEXT)
+    history_array.append({"role": "user", "content": incoming_text})
+    log_database_message(CURRENT_USER_CONTEXT, "user", incoming_text)
+    
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant", messages=conversation_history, tools=aira_tools, tool_choice="auto"
+            model="llama-3.1-8b-instant", messages=history_array, tools=aira_tools, tool_choice="auto"
         )
         msg = response.choices[0].message
         if msg.tool_calls:
             serialized_calls = []
             for tc in msg.tool_calls:
                 serialized_calls.append({"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}})
-            conversation_history.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
+            
+            history_array.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
+            log_database_message(CURRENT_USER_CONTEXT, "assistant", msg.content or "", serialized_calls)
             
             for tc in msg.tool_calls:
                 name = tc.function.name
@@ -483,27 +541,30 @@ def execute_brain_inference(incoming_text: str) -> str:
                     
                 if name in tool_registry:
                     res = tool_registry[name](**args)
-                    conversation_history.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
+                    history_array.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
+                    log_database_message(CURRENT_USER_CONTEXT, "tool", res)
             
-            final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=conversation_history)
+            final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=history_array)
             reply = final_res.choices[0].message.content
         else:
             reply = msg.content
+            
         if reply:
-            conversation_history.append({"role": "assistant", "content": reply})
+            log_database_message(CURRENT_USER_CONTEXT, "assistant", reply)
             return reply
-        return "AIRA Core: Processed successfully."
+        return "AIRA Core Node: Transaction isolated successfully."
     except Exception as e:
-        return f"AIRA System Exception Core Error: {e}"
+        return f"AIRA Relational Database Exception Error: {e}"
 
 def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
+    global CURRENT_USER_CONTEXT
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 16 Server Engine] Telegram Node Standby: Token not set.")
+        print("🪐 [Level 17 Database Server] Telegram Listener Node Standby: Token missing.")
         return
         
-    print("🚀 [Level 16 Server Engine] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 17 Database Server] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -515,9 +576,12 @@ def running_multiplatform_listener_loop():
                 for update in resp["result"]:
                     last_update_id = update["update_id"]
                     if "message" in update and "text" in update["message"]:
-                        chat_id = update["message"]["chat"]["id"]
+                        chat_id = str(update["message"]["chat"]["id"])
                         user_msg = update["message"]["text"]
-                        print(f"📲 Incoming Wireless Data Frame: '{user_msg}'")
+                        
+                        # MULTI-TENANT ISOLATION ACTIVATED: Lock current operations to the unique messaging user ID!
+                        CURRENT_USER_CONTEXT = f"telegram_{chat_id}"
+                        print(f"📲 Isolated Wireless User Packet Caught: '{user_msg}' from account '{CURRENT_USER_CONTEXT}'")
                         
                         aira_reply = execute_brain_inference(user_msg)
                         
@@ -533,37 +597,37 @@ def running_multiplatform_listener_loop():
 
 @app.get("/")
 async def serve_root_api_healthcheck():
-    """Returns a high-speed system metrics dictionary log payload tracking server state."""
     return {
         "status": "online",
-        "engine": "AIRA OS SaaS Agent Core",
+        "engine": "AIRA OS Relational Server Engine",
         "timestamp": datetime.now().isoformat(),
-        "sandbox_root": WORKSPACE_ROOT,
-        "telemetry": {
-            "cpu_utilization_percent": psutil.cpu_percent(),
-            "memory_utilization_percent": psutil.virtual_memory().percent
-        }
+        "database_status": "connected_sqlite3",
+        "active_sandbox": WORKSPACE_ROOT
     }
 
 @app.post("/chat")
 async def serve_inference_endpoint(request: Request):
-    """Secure inbound programmatic routing connector handling JSON payload message strings."""
+    global CURRENT_USER_CONTEXT
     try:
         body = await request.json()
         user_message = body.get("message", "").strip()
+        
+        # Pull optional routing identification keys passed from frontends to separate browser users
+        CURRENT_USER_CONTEXT = body.get("user_id", "shadik_master").strip().lower()
+        
         if not user_message:
-            raise HTTPException(status_code=400, detail="Payload execution request missing required 'message' key parameter.")
+            raise HTTPException(status_code=400, detail="Inbound data packet missing 'message' body value parameters.")
         
         agent_reply = execute_brain_inference(user_message)
-        return {"sender": "AIRA", "response": agent_reply, "timestamp": datetime.now().isoformat()}
+        return {"sender": "AIRA", "response": agent_reply, "user_context_bound": CURRENT_USER_CONTEXT}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"Internal API Server Exception: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"API Engine Database Exception: {e}"})
 
 if __name__ == "__main__":
-    # Start the persistent Telegram mobile synchronization node in a separate daemon process thread
+    # Start the multi-tenant message parser background processing loop
     threading.Thread(target=running_multiplatform_listener_loop, daemon=True).start()
     
-    # Run the high-speed local HTTP server interface block
+    # Run the production API server engine node
     import uvicorn
-    print("⚡ Starting Local Production Server Stack Engine on Port 8000...")
+    print("⚡ Deploying Multi-Tenant Core Node Server Framework...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
