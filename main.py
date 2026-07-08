@@ -17,9 +17,10 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # Persistent Memory Storage Pointers
 MEMORY_FILE = "memory.json"
 PROFILE_FILE = "profile.json"
+DEADLINES_FILE = "deadlines.json"  # Level 5 Core Tracker Location
 
 # =====================================================================
-# 🚀 AIRA V4 SYSTEM — AGENT ACTION TOOL CORES
+# 🚀 AIRA V5 SYSTEM — AGENT ACTION TOOL CORES
 # =====================================================================
 
 # 1. Core Python System-Level Action Functions
@@ -116,7 +117,7 @@ def read_file(filename: str) -> str:
         if os.path.isdir(filename):
             return f"System Error: '{filename}' is a directory folder structure, not a text file data block."
             
-        with open(filename, "w", encoding="utf-8") as f:
+        with open(filename, "r", encoding="utf-8") as f:
             file_data = f.read()
         return f"Workspace File Execution Payload ('{filename}'):\n{file_data}"
     except Exception as e:
@@ -218,6 +219,60 @@ def read_profile_facts() -> str:
     except Exception as e:
         return f"System Error: Failed to parse permanent long-term memory registers. Reason: {e}"
 
+def add_deadline(event_name: str, target_date: str) -> str:
+    """🌟 LEVEL 5: Saves an upcoming exam, milestone, or hackathon target date (Format: YYYY-MM-DD)."""
+    try:
+        # Validate calendar string format directly
+        datetime.strptime(target_date.strip(), "%Y-%m-%d")
+        
+        deadlines = {}
+        if os.path.exists(DEADLINES_FILE):
+            with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
+                try:
+                    deadlines = json.load(f)
+                except Exception:
+                    deadlines = {}
+                    
+        deadlines[event_name.strip()] = target_date.strip()
+        
+        with open(DEADLINES_FILE, "w", encoding="utf-8") as f:
+            json.dump(deadlines, f, indent=4)
+        return f"System message: Deadline registered successfully for '{event_name}' on {target_date}."
+    except ValueError:
+        return "System Error: Invalid calendar structure layout. Target dates must be written exactly as YYYY-MM-DD."
+    except Exception as e:
+        return f"System Error: Failed to update scheduler register registry. Reason: {e}"
+
+def get_countdown_alerts() -> str:
+    """🌟 LEVEL 5: Calculates real-world time-remaining differences against the machine clock."""
+    try:
+        if not os.path.exists(DEADLINES_FILE):
+            return "System message: No target deadlines are currently registered inside the planner profile."
+            
+        with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
+            deadlines = json.load(f)
+            
+        if not deadlines:
+            return "System message: No target deadlines are currently tracking inside the file array."
+            
+        today = datetime.now().date()
+        countdown_report = ["Live Scheduler Tracking Countdown Array:"]
+        
+        for event, date_str in deadlines.items():
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            days_left = (target_date - today).days
+            
+            if days_left > 0:
+                countdown_report.append(f"- {event}: {days_left} days remaining (Target: {date_str})")
+            elif days_left == 0:
+                countdown_report.append(f"- 🔥 {event}: IS HAPPENING TODAY!")
+            else:
+                countdown_report.append(f"- {event}: Passed {abs(days_left)} days ago ({date_str})")
+                
+        return "\n".join(countdown_report)
+    except Exception as e:
+        return f"System Error: Failed to process timeline array differences. Reason: {e}"
+
 
 # 2. Scalable Tool Registry Directory Mapping
 tool_registry = {
@@ -233,7 +288,9 @@ tool_registry = {
     "get_hardware_status": get_hardware_status,
     "launch_app": launch_app,
     "save_profile_fact": save_profile_fact,
-    "read_profile_facts": read_profile_facts
+    "read_profile_facts": read_profile_facts,
+    "add_deadline": add_deadline,          # Level 5 Activated!
+    "get_countdown_alerts": get_countdown_alerts  # Level 5 Activated!
 }
 
 # 3. Dynamic Native AI Agent Tool Blueprints (JSON Schema Toolbox Array)
@@ -242,12 +299,10 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "open_website",
-            "description": "Opens any web URL in the browser. Use this whenever the user asks to open or navigate to a website.",
+            "description": "Opens any web URL in the browser.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "url": {"type": "string", "description": "The web URL string to open. Example: 'https://www.youtube.com'"}
-                },
+                "properties": {"url": {"type": "string"}},
                 "required": ["url"]
             }
         }
@@ -256,7 +311,7 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "get_current_time",
-            "description": "Returns the current local real-world time. Use this whenever the user explicitly asks for the time.",
+            "description": "Returns the current local real-world time.",
             "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
@@ -264,7 +319,7 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "get_current_date",
-            "description": "Returns the current local real-world date. Use this whenever the user explicitly asks for today's date.",
+            "description": "Returns the current local real-world date.",
             "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
@@ -280,12 +335,12 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "create_file",
-            "description": "Creates a brand-new file in the local project workspace. Use this whenever the user tells you to create, write, generate, or make a file.",
+            "description": "Creates a brand-new file in the local project workspace.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filename": {"type": "string", "description": "The exact name of the target file to build, including extension. Example: 'notes.txt'."},
-                    "content": {"type": "string", "description": "The text string layout data to compile and write inside the document body."}
+                    "filename": {"type": "string"},
+                    "content": {"type": "string"}
                 },
                 "required": ["filename"]
             }
@@ -295,12 +350,10 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "create_folder",
-            "description": "Creates a brand-new folder directory in the local project workspace directory. Use this whenever the user asks you to make, generate, or set up a new folder or directory.",
+            "description": "Creates a brand-new folder directory in the local project workspace directory.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "foldername": {"type": "string", "description": "The target name of the folder directory to generate. Example: 'assets'."}
-                },
+                "properties": {"foldername": {"type": "string"}},
                 "required": ["foldername"]
             }
         }
@@ -309,12 +362,12 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "rename_file",
-            "description": "Renames an existing file or folder inside the workspace layout. Use this whenever the user asks to rename, change the name of, or modify a file or folder's title identifier.",
+            "description": "Renames an existing file or folder inside the workspace layout.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "old_name": {"type": "string", "description": "The current filename or directory folder name target to be changed. Example: 'draft.txt'."},
-                    "new_name": {"type": "string", "description": "The fresh new name target string to apply to that file or folder. Example: 'final_version.txt'."}
+                    "old_name": {"type": "string"},
+                    "new_name": {"type": "string"}
                 },
                 "required": ["old_name", "new_name"]
             }
@@ -324,12 +377,10 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "delete_file",
-            "description": "Deletes an existing file document completely from the local folder workspace environment. Use this whenever the user tells you to delete, remove, drop, or destroy an explicit target file name.",
+            "description": "Deletes an existing file document completely from the local folder workspace environment.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "filename": {"type": "string", "description": "The exact name of the target file to remove from disk. Example: 'old_notes.txt'."}
-                },
+                "properties": {"filename": {"type": "string"}},
                 "required": ["filename"]
             }
         }
@@ -338,12 +389,10 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "read_file",
-            "description": "Reads the plain text string data stored inside an existing text file doc. Use this tool whenever the user asks you to see inside, view content, read text out of, or look at a specific workspace text file name.",
+            "description": "Reads the plain text string data stored inside an existing text file doc.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "filename": {"type": "string", "description": "The exact string filename identifier target to extract text from. Example: 'config.json'."}
-                },
+                "properties": {"filename": {"type": "string"}},
                 "required": ["filename"]
             }
         }
@@ -352,7 +401,7 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "get_hardware_status",
-            "description": "Pulls live diagnostic telemetry parameters regarding the laptop hardware status directly from the operating system core layer.",
+            "description": "Pulls live diagnostic telemetry parameters regarding the laptop hardware status.",
             "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
@@ -366,7 +415,7 @@ aira_tools = [
                 "properties": {
                     "app_name": {
                         "type": "string",
-                        "description": "The common mapped string name of the application tool target to start. Allowed choices: 'notepad', 'calculator', 'paint', 'task_manager', 'chrome', 'vs_code', 'snipping_tool', 'settings', 'whatsapp', 'camera', 'clock', 'claude'."
+                        "description": "Allowed choices: 'notepad', 'calculator', 'paint', 'task_manager', 'chrome', 'vs_code', 'snipping_tool', 'settings', 'whatsapp', 'camera', 'clock', 'claude'."
                     }
                 },
                 "required": ["app_name"]
@@ -377,12 +426,12 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "save_profile_fact",
-            "description": "Permanently saves a key background fact about the user to a long-term file layout. Use this tool whenever the user tells you personal details about themselves.",
+            "description": "Permanently saves a key background fact about the user to a long-term file layout.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "fact_key": {"type": "string", "description": "The description label of the fact topic identifier. Example: 'favorite_language'."},
-                    "fact_value": {"type": "string", "description": "The detailed value string to store. Example: 'Python'."}
+                    "fact_key": {"type": "string"},
+                    "fact_value": {"type": "string"}
                 },
                 "required": ["fact_key", "fact_value"]
             }
@@ -392,7 +441,30 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "read_profile_facts",
-            "description": "Pulls and reads all long-term saved profile data facts currently held in the database register. Use this whenever the user asks what you know about them.",
+            "description": "Pulls and reads all long-term saved profile data facts currently held in the database register.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_deadline",
+            "description": "Saves an upcoming exam, countdown tracker, assignment milestone, or hackathon target date. Target dates MUST be explicitly passed in YYYY-MM-DD string structure format layout.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_name": {"type": "string", "description": "The clear title label of the upcoming deadline milestone event. Example: 'Final Python Exam'."},
+                    "target_date": {"type": "string", "description": "The exact calendar date to track passed strictly as YYYY-MM-DD. Example: '2026-11-20'."}
+                },
+                "required": ["event_name", "target_date"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_countdown_alerts",
+            "description": "Runs a real-time calendar date tracking analysis difference function against stowed planner arrays to determine exact days remaining until registered project milestones arrive.",
             "parameters": {"type": "object", "properties": {}, "required": []}
         }
     }
@@ -429,7 +501,7 @@ def search_web(query: str) -> str:
 # 💾 AIRA V4 SYSTEM — COMPACTION OPTIMIZATION LOGIC
 # =====================================================================
 def auto_compact_history(history, groq_client):
-    """🌟 LEVEL 4 ENGINE: Compresses middle logs to guarantee elite execution speeds."""
+    """LEVEL 4 ENGINE: Compresses middle logs to guarantee elite execution speeds."""
     if len(history) <= 20:
         return history
         
@@ -437,12 +509,10 @@ def auto_compact_history(history, groq_client):
     print("⏳ Running background distillation compression on old logs...")
     
     try:
-        # Keep system prompt intact, extract middle logs for compression
         system_prompt = history[0]
-        slice_to_compress = history[1:-4]  # Leave the last 4 messages active for recent chat context
+        slice_to_compress = history[1:-4]  
         recent_messages = history[-4:]
         
-        # Turn the target slice into a clear text layout for the model to review
         raw_text_to_condense = ""
         for msg in slice_to_compress:
             role = msg.get("role", "user").upper()
@@ -454,8 +524,7 @@ def auto_compact_history(history, groq_client):
         compaction_prompt = (
             "You are an elite system background memory manager.\n"
             "Analyze the conversational timeline history below, and condense it entirely into a "
-            "single, tight narrative paragraph. Focus exclusively on key topics decided, instructions finalized, "
-            "and files created or altered. Do not include chat greetings.\n\n"
+            "single, tight narrative paragraph focusing exclusively on key topics decided or files changed.\n\n"
             f"Timeline logs to compress:\n{raw_text_to_condense}"
         )
         
@@ -467,10 +536,9 @@ def auto_compact_history(history, groq_client):
         compressed_summary = compaction_response.choices[0].message.content
         print("✅ Distillation complete! Saved workspace chat capacity.\n")
         
-        # Rebuild the array using the fresh compact summary block
         optimized_history = [
             system_prompt,
-            {"role": "system", "content": f"Summary background profile of previous interactions in this session: {compressed_summary}"}
+            {"role": "system", "content": f"Summary profile of previous interactions: {compressed_summary}"}
         ]
         optimized_history.extend(recent_messages)
         return optimized_history
@@ -528,7 +596,6 @@ print("📄 Format PDF document readings as: 'pdf: filename.pdf'\n")
 # 💬 AIRA V1 SYSTEM — INTERACTIVE MAIN LOOP
 # =====================================================================
 while True:
-    # 🌟 RUN THE AUTO COMPACTION CHECKER AT THE TOP OF EVERY LOOP CYCLE
     conversation_history = auto_compact_history(conversation_history, client)
 
     user_input = input("You: ").strip()
@@ -542,7 +609,6 @@ while True:
     if not user_input:
         continue
 
-    # --- V3 WEB SEARCH INJECTION PATH ---
     if user_input.startswith("search:"):
         query = user_input[7:].strip()
         print(f"🔍 Contacting search servers for: '{query}'...")
@@ -550,7 +616,6 @@ while True:
         prompt_with_context = f"You are AIRA.\nBelow are live web search results.\n\n{context_data}\n\nUsing this information, answer the question: {query}"
         conversation_history.append({"role": "user", "content": prompt_with_context})
 
-    # --- V3 PDF DOCUMENT INJECTION PATH ---
     elif user_input.startswith("pdf:"):
         file_name = user_input[4:].strip()
         print(f"📄 Scraping text content out of target document: '{file_name}'...")
@@ -558,11 +623,9 @@ while True:
         prompt_with_context = f"Here is the PDF content from file '{file_name}':\n\n{pdf_extracted_text}\n\nAnalyze and break down this data concisely for the user."
         conversation_history.append({"role": "user", "content": prompt_with_context})
 
-    # --- V1 NORMAL STANDALONE CHAT PATH ---
     else:
         conversation_history.append({"role": "user", "content": user_input})
 
-    # Transmit conversation logs out to the Groq API Engine
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -573,7 +636,6 @@ while True:
         
         message = response.choices[0].message
         
-        # Checking if Groq successfully parsed a tool request
         if message.tool_calls:
             print("\n🤖 [AIRA Agent Mode Triggered!]")
             
