@@ -1,13 +1,16 @@
 import os
 import json
-import webbrowser  # Preserved V4: Native tool use to open browser windows
-from datetime import datetime  # Preserved V4: Native tool use to access system clock
+import threading
+import webbrowser
+import tkinter as tk
+from tkinter import scrolledtext
+from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
-from ddgs import DDGS      # Preserved V3: DuckDuckGo Search Engine
-from pypdf import PdfReader  # Preserved V3: PDF Reader Document Extractor
-import psutil              # Preserved V4: Hardware telemetry engine
-import pyttsx3             # 🌟 LEVEL 7: Offline Text-to-Speech Audio Engine
+from ddgs import DDGS
+from pypdf import PdfReader
+import psutil
+import pyttsx3
 
 # Load environment variables from your .env file
 load_dotenv()
@@ -21,268 +24,201 @@ PROFILE_FILE = "profile.json"
 DEADLINES_FILE = "deadlines.json"
 
 # =====================================================================
-# 🌟 LEVEL 7: NATIVE VOICE SPEECH SYNTHESIS INITIALIZATION
+# 🔊 NATIVE VOICE SPEECH SYNTHESIS INITIALIZATION
 # =====================================================================
 try:
-    engine = pyttsx3.init()
-    # Configure an optimal speaking rate (words per minute)
-    engine.setProperty('rate', 185)
-    # Select a clean system voice profile (0 for male, 1 for female depending on OS config)
-    voices = engine.getProperty('voices')
+    voice_engine = pyttsx3.init()
+    voice_engine.setProperty('rate', 185)
+    voices = voice_engine.getProperty('voices')
     if len(voices) > 1:
-        engine.setProperty('voice', voices[1].id)  # Standard clean assistant profile
+        voice_engine.setProperty('voice', voices[1].id)
     else:
-        engine.setProperty('voice', voices[0].id)
+        voice_engine.setProperty('voice', voices[0].id)
     VOICE_AVAILABLE = True
 except Exception as e:
-    print(f"⚠️ Voice engine initialization skipped. Audio output unavailable. Reason: {e}")
+    print(f"⚠️ Voice engine initialization skipped. Audio output unavailable: {e}")
     VOICE_AVAILABLE = False
 
 def aira_speak(text: str):
-    """🌟 LEVEL 7: Strips helper code tags and converts raw output text into vocal audio speech."""
+    """Converts response text tokens into spoken vocal audio outputs safely."""
     if not VOICE_AVAILABLE or not text:
         return
-    # Strip clean system tracking blocks before reading out loud
     clean_text = text.replace("<function>", "").replace("</function>", "")
     clean_text = clean_text.replace("<error_message>", "").replace("</error_message>", "")
     try:
-        engine.say(clean_text)
-        engine.runAndWait()
+        voice_engine.say(clean_text)
+        voice_engine.runAndWait()
     except Exception:
         pass
 
 # =====================================================================
-# 🚀 AIRA V7 SYSTEM — AGENT ACTION TOOL CORES
+# 🚀 AIRA AGENT ACTION TOOL CORES
 # =====================================================================
 
 def open_website(url: str) -> str:
-    """Opens any specified website URL in the user's default browser safely."""
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
     webbrowser.open(url)
     return f"System message: Successfully opened {url} in Shadik's desktop browser."
 
 def get_current_time() -> str:
-    """Retrieves the current local clock time from the laptop system clock."""
-    now = datetime.now()
-    formatted_time = now.strftime("%I:%M %p")
-    return f"System message: The current local time is {formatted_time}."
+    return f"System message: The current local time is {datetime.now().strftime('%I:%M %p')}."
 
 def get_current_date() -> str:
-    """Retrieves the current local calendar date from the laptop system clock."""
-    now = datetime.now()
-    formatted_date = now.strftime("%B %d, %Y")
-    return f"System message: Today's date is {formatted_date}."
+    return f"System message: Today's date is {datetime.now().strftime('%B %d, %Y')}."
 
 def list_files() -> str:
-    """Scans the current project directory and returns a list of all files inside."""
     try:
         files = os.listdir(".")
         if not files:
-            return "System message: The current directory workspace folder is entirely empty."
-        bulleted_files = "\n".join([f"- {item}" for item in files])
-        return f"System message: Here are the active workspace files found:\n{bulleted_files}"
+            return "System message: The current directory workspace folder is empty."
+        return f"System message: Active workspace files:\n" + "\n".join([f"- {f}" for f in files])
     except Exception as e:
-        return f"System Error: Unable to scan file system profile. Reason: {e}"
+        return f"System Error: Unable to scan file system: {e}"
 
 def create_file(filename: str, content: str = "") -> str:
-    """Creates a new text file inside the local project workspace folder."""
     try:
         if "/" in filename or "\\" in filename:
-            return "System Error: Security violation. Files must be created directly in the workspace root."
-        
+            return "System Error: Files must be created directly in the workspace root."
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
-        return f"System message: Successfully created file '{filename}' inside the workspace directory."
+        return f"System message: Successfully created file '{filename}'."
     except Exception as e:
-        return f"System Error: Failed to execute file creation payload. Reason: {e}"
+        return f"System Error: Failed to create file: {e}"
 
 def create_folder(foldername: str) -> str:
-    """Creates a brand-new directory folder inside the local project workspace folder."""
     try:
         if "/" in foldername or "\\" in foldername:
-            return "System Error: Security violation. Folders must be created directly inside the workspace root."
+            return "System Error: Folders must be created directly in the workspace root."
         if os.path.exists(foldername):
-            return f"System message: A folder named '{foldername}' already exists in this directory."
-            
+            return f"System message: Folder '{foldername}' already exists."
         os.makedirs(foldername, exist_ok=True)
-        return f"System message: Successfully created a new empty folder directory named '{foldername}'."
+        return f"System message: Successfully created empty folder directory '{foldername}'."
     except Exception as e:
-        return f"System Error: Failed to build folder directory. Reason: {e}"
+        return f"System Error: Failed to build folder: {e}"
 
 def rename_file(old_name: str, new_name: str) -> str:
-    """Renames an existing file or folder inside the local project workspace folder."""
     try:
         if "/" in old_name or "\\" in old_name or "/" in new_name or "\\" in new_name:
-            return "System Error: Security violation. Renaming must be done strictly within the workspace root."
+            return "System Error: Renaming must be done within the workspace root."
         if not os.path.exists(old_name):
-            return f"System Error: Cannot rename '{old_name}' because it does not exist in this folder."
-            
+            return f"System Error: '{old_name}' does not exist."
         os.rename(old_name, new_name)
-        return f"System message: Successfully renamed '{old_name}' to '{new_name}' safely."
+        return f"System message: Successfully renamed '{old_name}' to '{new_name}'."
     except Exception as e:
-        return f"System Error: Failed to change target file name profile. Reason: {e}"
+        return f"System Error: Failed to rename file: {e}"
 
 def delete_file(filename: str) -> str:
-    """Deletes an existing file document from the workspace root safely."""
     try:
         if "/" in filename or "\\" in filename:
-            return "System Error: Security violation. Deletion targets must live inside the workspace root."
+            return "System Error: Deletion targets must live inside the workspace root."
         if not os.path.exists(filename):
-            return f"System Error: File '{filename}' cannot be deleted because it does not exist."
+            return f"System Error: File '{filename}' does not exist."
         if os.path.isdir(filename):
-            return f"System Error: '{filename}' is a directory folder. Standard file deletion commands cannot delete folders."
-            
+            return f"System Error: '{filename}' is a directory folder."
         os.remove(filename)
-        return f"System message: Successfully dropped and deleted file '{filename}' from the local directory layout."
+        return f"System message: Successfully deleted file '{filename}' from local directory."
     except Exception as e:
-        return f"System Error: Failed to execute secure file deletion task. Reason: {e}"
+        return f"System Error: Failed to delete file: {e}"
 
 def read_file(filename: str) -> str:
-    """Reads and returns the complete plain text content of a target workspace file document."""
     try:
         if "/" in filename or "\\" in filename:
-            return "System Error: Security violation. Reading targets must live directly within the workspace root."
+            return "System Error: Reading targets must live directly within the workspace root."
         if not os.path.exists(filename):
-            return f"System Error: Cannot read file '{filename}' because it does not exist."
-        if os.path.isdir(filename):
-            return f"System Error: '{filename}' is a directory folder structure, not a text file data block."
-            
+            return f"System Error: Cannot read '{filename}' because it does not exist."
         with open(filename, "r", encoding="utf-8") as f:
             file_data = f.read()
         return f"Workspace File Execution Payload ('{filename}'):\n{file_data}"
     except Exception as e:
-        return f"System Error: Failed to extract internal text string matrix. Reason: {e}"
+        return f"System Error: Failed to read text file contents: {e}"
 
 def get_hardware_status() -> str:
-    """Gathers dynamic hardware utilization statistics like CPU load, RAM use, and Battery life."""
     try:
-        cpu_load = psutil.cpu_percent(interval=0.5)
+        cpu_load = psutil.cpu_percent(interval=0.1)
         ram_percent = psutil.virtual_memory().percent
         battery = psutil.sensors_battery()
-        
-        if battery is not None:
-            plugged_in = "Plugged In Charging" if battery.power_plugged else "Running on Battery Power"
-            battery_str = f"{battery.percent}% ({plugged_in})"
-        else:
-            battery_str = "No physical battery detected (Desktop PC Core Engine)"
-            
-        return (
-            "System Hardware Statistics Report:\n"
-            f"- CPU Processing Load: {cpu_load}%\n"
-            f"- RAM Memory Utilization: {ram_percent}%\n"
-            f"- Power/Battery Profile: {battery_str}"
-        )
+        battery_str = f"{battery.percent}%" if battery else "N/A"
+        return f"System Hardware Report: CPU: {cpu_load}%, RAM: {ram_percent}%, Battery: {battery_str}"
     except Exception as e:
-        return f"System Error: Failed to poll machine telemetry arrays. Reason: {e}"
+        return f"System Error: Failed to poll telemetry: {e}"
 
 def launch_app(app_name: str) -> str:
-    """Spawns a local native desktop application process on Windows safely using Shell Execution."""
     try:
         app_lookup = {
-            "notepad": "notepad.exe",
-            "calculator": "calc.exe",
-            "paint": "mspaint.exe",
-            "task_manager": "taskmgr.exe",
-            "chrome": "chrome.exe",
-            "vs_code": "code",
-            "snipping_tool": "snippingtool.exe",
-            "settings": "ms-settings:",
-            "whatsapp": "whatsapp:",
-            "camera": "microsoft.windows.camera:",
-            "clock": "ms-clock:"
+            "notepad": "notepad.exe", "calculator": "calc.exe", "paint": "mspaint.exe",
+            "task_manager": "taskmgr.exe", "chrome": "chrome.exe", "vs_code": "code",
+            "snipping_tool": "snippingtool.exe", "settings": "ms-settings:",
+            "whatsapp": "whatsapp:", "camera": "microsoft.windows.camera:", "clock": "ms-clock:"
         }
-        
-        target_clean_name = app_name.lower().strip()
-        
-        if "claude" in target_clean_name:
+        target_name = app_name.lower().strip()
+        if "claude" in target_name:
             try:
                 os.startfile("claude.exe")
-                return "System message: Successfully deployed and executed native Claude desktop app window."
+                return "System message: Successfully deployed native Claude desktop application."
             except Exception:
                 webbrowser.open("https://claude.ai")
-                return "System message: Local shortcut path wasn't open. Successfully fell back to launching Claude AI via web browser."
-        
-        if target_clean_name in app_lookup:
-            executable = app_lookup[target_clean_name]
-            os.startfile(executable)
-            return f"System message: Successfully launched local execution process for '{target_clean_name}'."
-        else:
-            return f"System Error: '{app_name}' is not registered in the safe app registry profile layout."
+                return "System message: Local shortcut unavailable. Launched Claude AI via browser."
+        if target_name in app_lookup:
+            os.startfile(app_lookup[target_name])
+            return f"System message: Successfully launched application process for '{target_name}'."
+        return f"System Error: '{app_name}' is not registered in the safe app profile."
     except Exception as e:
-        return f"System Error: Failed to spawn system app interface. Reason: {e}"
+        return f"System Error: Failed to launch system app: {e}"
 
 def save_profile_fact(fact_key: str, fact_value: str) -> str:
-    """Saves a permanent fact about the user into their long-term profile memory database."""
     try:
         profile = {}
         if os.path.exists(PROFILE_FILE):
             with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-                try:
-                    profile = json.load(f)
-                except Exception:
-                    profile = {}
-                    
+                try: profile = json.load(f)
+                except Exception: profile = {}
         profile[fact_key.lower().strip()] = fact_value.strip()
-        
         with open(PROFILE_FILE, "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=4)
         return f"System message: Long-term fact securely saved: '{fact_key}' = '{fact_value}'."
     except Exception as e:
-        return f"System Error: Failed to write data to long-term memory file. Reason: {e}"
+        return f"System Error: Failed to write to memory: {e}"
 
 def read_profile_facts() -> str:
-    """Reads all permanently stored profile facts about the user from the long-term database file."""
     try:
         if not os.path.exists(PROFILE_FILE):
-            return "System message: Long-term profile memory database file is currently entirely empty."
+            return "System message: Long-term profile memory database is empty."
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-            try:
-                profile = json.load(f)
-            except Exception:
-                return "System message: Long-term database is empty or unreadable."
-                
+            profile = json.load(f)
         if not profile:
-            return "System message: Long-term profile memory database file is currently empty."
-            
-        formatted_facts = "\n".join([f"- {k.title()}: {v}" for k, v in profile.items()])
-        return f"Long-Term Database Scan Output:\n{formatted_facts}"
+            return "System message: Long-term profile memory database is empty."
+        return "Long-Term Database Facts:\n" + "\n".join([f"- {k.title()}: {v}" for k, v in profile.items()])
     except Exception as e:
-        return f"System Error: Failed to parse permanent long-term memory registers. Reason: {e}"
+        return f"System Error: Failed to parse long-term registers: {e}"
 
 def add_deadline(event_name: str, target_date: str) -> str:
-    """Saves an upcoming exam, milestone, or hackathon target date (Format: YYYY-MM-DD)."""
     try:
         datetime.strptime(target_date.strip(), "%Y-%m-%d")
         deadlines = {}
         if os.path.exists(DEADLINES_FILE):
             with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
-                try:
-                    deadlines = json.load(f)
-                except Exception:
-                    deadlines = {}
-                    
+                try: deadlines = json.load(f)
+                except Exception: deadlines = {}
         deadlines[event_name.strip()] = target_date.strip()
         with open(DEADLINES_FILE, "w", encoding="utf-8") as f:
             json.dump(deadlines, f, indent=4)
         return f"System message: Deadline registered successfully for '{event_name}' on {target_date}."
     except ValueError:
-        return "System Error: Invalid calendar structure layout. Target dates must be written exactly as YYYY-MM-DD."
+        return "System Error: Invalid layout string format. Target dates must be exactly YYYY-MM-DD."
     except Exception as e:
-        return f"System Error: Failed to update scheduler register registry. Reason: {e}"
+        return f"System Error: Failed to update scheduler: {e}"
 
 def get_countdown_alerts() -> str:
-    """Calculates real-world time-remaining differences against the machine clock."""
     try:
         if not os.path.exists(DEADLINES_FILE):
-            return "System message: No target deadlines are currently registered inside the planner profile."
+            return "System message: No target deadlines are registered inside the planner profile."
         with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
             deadlines = json.load(f)
         if not deadlines:
-            return "System message: No target deadlines are currently tracking inside the file array."
-            
+            return "System message: No target deadlines are currently tracking."
         today = datetime.now().date()
-        countdown_report = ["Live Scheduler Tracking Countdown Array:"]
+        countdown_report = ["Live Scheduler Countdown Alerts:"]
         for event, date_str in deadlines.items():
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             days_left = (target_date - today).days
@@ -294,439 +230,220 @@ def get_countdown_alerts() -> str:
                 countdown_report.append(f"- {event}: Passed {abs(days_left)} days ago ({date_str})")
         return "\n".join(countdown_report)
     except Exception as e:
-        return f"System Error: Failed to process timeline array differences. Reason: {e}"
+        return f"System Error: Failed to process timeline array differences: {e}"
 
 def search_internet(query: str) -> str:
-    """Connects AIRA autonomously to the live web to fetch summaries on news, hackathons, and internships."""
     try:
-        print(f"🔍 [Autonomous Tool Execution] Scanning web index pages for: '{query}'...")
         with DDGS() as ddgs:
             results = [r for r in ddgs.text(query, max_results=4)]
             if not results:
-                return "System message: The web search query completed but returned 0 active text results."
+                return "System message: Search query returned 0 active text results."
             search_text = "Live Search Engine Indexes Retrieved:\n"
             for r in results:
                 search_text += f"Title: {r['title']}\nSnippet: {r['body']}\n\n"
             return search_text
     except Exception as e:
-        return f"System Error: Failed to complete live internet search task. Reason: {e}"
+        return f"System Error: Failed to complete internet search: {e}"
 
-
-# 2. Scalable Tool Registry Directory Mapping
+# Scalable Tool Registries Mapping Directories
 tool_registry = {
-    "open_website": open_website,
-    "get_current_time": get_current_time,
-    "get_current_date": get_current_date,
-    "list_files": list_files,
-    "create_file": create_file,
-    "create_folder": create_folder,
-    "rename_file": rename_file,
-    "delete_file": delete_file,
-    "read_file": read_file,
-    "get_hardware_status": get_hardware_status,
-    "launch_app": launch_app,
-    "save_profile_fact": save_profile_fact,
-    "read_profile_facts": read_profile_facts,
-    "add_deadline": add_deadline,
-    "get_countdown_alerts": get_countdown_alerts,
-    "search_internet": search_internet
+    "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
+    "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
+    "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file,
+    "get_hardware_status": get_hardware_status, "launch_app": launch_app, "save_profile_fact": save_profile_fact,
+    "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
+    "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet
 }
 
-# 3. Dynamic Native AI Agent Tool Blueprints
+# Dynamic Native AI Agent Tool Blueprints Schema Layout Array
 aira_tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "open_website",
-            "description": "Opens any web URL in the browser.",
-            "parameters": {
-                "type": "object",
-                "properties": {"url": {"type": "string"}},
-                "required": ["url"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_current_time",
-            "description": "Returns the current local real-world time.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_current_date",
-            "description": "Returns the current local real-world date.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_files",
-            "description": "Lists all file documents inside the current project workspace directory.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_file",
-            "description": "Creates a brand-new file in the local project workspace.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "filename": {"type": "string"},
-                    "content": {"type": "string"}
-                },
-                "required": ["filename"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_folder",
-            "description": "Creates a brand-new folder directory in the local project workspace directory.",
-            "parameters": {
-                "type": "object",
-                "properties": {"foldername": {"type": "string"}},
-                "required": ["foldername"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "rename_file",
-            "description": "Renames an existing file or folder inside the workspace layout.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "old_name": {"type": "string"},
-                    "new_name": {"type": "string"}
-                },
-                "required": ["old_name", "new_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_file",
-            "description": "Deletes an existing file document completely from the local folder workspace environment.",
-            "parameters": {
-                "type": "object",
-                "properties": {"filename": {"type": "string"}},
-                "required": ["filename"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Reads the plain text string data stored inside an existing text file doc.",
-            "parameters": {
-                "type": "object",
-                "properties": {"filename": {"type": "string"}},
-                "required": ["filename"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_hardware_status",
-            "description": "Pulls live diagnostic telemetry parameters regarding the laptop hardware status.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "launch_app",
-            "description": "Spawns and launches a local native desktop application program on the user's computer workspace.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "app_name": {
-                        "type": "string",
-                        "description": "Allowed choices: 'notepad', 'calculator', 'paint', 'task_manager', 'chrome', 'vs_code', 'snipping_tool', 'settings', 'whatsapp', 'camera', 'clock', 'claude'."
-                    }
-                },
-                "required": ["app_name"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "save_profile_fact",
-            "description": "Permanently saves a key background fact about the user to a long-term file layout.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "fact_key": {"type": "string"},
-                    "fact_value": {"type": "string"}
-                },
-                "required": ["fact_key", "fact_value"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_profile_facts",
-            "description": "Pulls and reads all long-term saved profile data facts currently held in the database register.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "add_deadline",
-            "description": "Saves an upcoming exam, countdown tracker, assignment milestone, or hackathon target date.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "event_name": {"type": "string"},
-                    "target_date": {"type": "string"}
-                },
-                "required": ["event_name", "target_date"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_countdown_alerts",
-            "description": "Runs a real-time calendar date tracking analysis difference function against stowed planner arrays.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_internet",
-            "description": "Browses live web engines dynamically. Use this whenever the user asks for the latest news, tech updates, open internship roles, or coding contests/hackathons happening right now.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "The target keyword string text to find online."}
-                },
-                "required": ["query"]
-            }
-        }
-    }
+    {"type": "function", "function": {"name": "open_website", "description": "Opens any web URL in the browser.", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
+    {"type": "function", "function": {"name": "get_current_time", "description": "Returns current local time.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "get_current_date", "description": "Returns current local date.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "list_files", "description": "Lists files in directory.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "create_file", "description": "Creates a new file in local workspace.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}, "content": {"type": "string"}}, "required": ["filename"]}}},
+    {"type": "function", "function": {"name": "create_folder", "description": "Creates folder directory in local workspace.", "parameters": {"type": "object", "properties": {"foldername": {"type": "string"}}, "required": ["foldername"]}}},
+    {"type": "function", "function": {"name": "rename_file", "description": "Renames existing file or folder.", "parameters": {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]}}},
+    {"type": "function", "function": {"name": "delete_file", "description": "Deletes file from directory root completely.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
+    {"type": "function", "function": {"name": "read_file", "description": "Reads text strings stored in target file.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
+    {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
+    {"type": "function", "function": {"name": "save_profile_fact", "description": "Saves fact parameters to user long-term memory file.", "parameters": {"type": "object", "properties": {"fact_key": {"type": "string"}, "fact_value": {"type": "string"}}, "required": ["fact_key", "fact_value"]}}},
+    {"type": "function", "function": {"name": "read_profile_facts", "description": "Reads long-term user context profile database facts.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "add_deadline", "description": "Saves an upcoming milestone tracker calendar date.", "parameters": {"type": "object", "properties": {"event_name": {"type": "string"}, "target_date": {"type": "string"}}, "required": ["event_name", "target_date"]}}},
+    {"type": "function", "function": {"name": "get_countdown_alerts", "description": "Runs calendar timeline tracking analysis.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "search_internet", "description": "Browses open web index search engines engines dynamically for live data.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}}
 ]
 
-# =====================================================================
-# 🌐 AIRA SYSTEM — CONTEXT EXTRACTION HELPER FUNCTIONS
-# =====================================================================
-
 def read_pdf(file_path: str) -> str:
-    """Extracts raw text content out of any local target PDF file."""
     try:
         reader = PdfReader(file_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
-        return text
+        return "".join([page.extract_text() + "\n" for page in reader.pages])
     except Exception as e:
-        return f"System Error: Failed to parse PDF document. Reason: {e}"
+        return f"System Error: Failed to parse PDF document: {e}"
 
-# =====================================================================
-# 💾 AIRA SYSTEM — COMPACTION OPTIMIZATION LOGIC
-# =====================================================================
 def auto_compact_history(history, groq_client):
-    """LEVEL 4 ENGINE: Compresses middle logs to guarantee elite execution speeds."""
     if len(history) <= 20:
         return history
-    print("\n⚡ [Memory Optimizer Triggered] Short-term history is getting too long!")
     try:
         system_prompt = history[0]
         slice_to_compress = history[1:-4]  
         recent_messages = history[-4:]
-        
-        raw_text_to_condense = ""
+        raw_text = ""
         for msg in slice_to_compress:
-            role = msg.get("role", "user").upper()
             content = msg.get("content") or ""
-            if msg.get("tool_calls"):
-                content += " [System Tool Invocations Executed]"
-            raw_text_to_condense += f"{role}: {content}\n"
-            
-        compaction_prompt = (
-            "You are an elite system background memory manager.\n"
-            "Analyze the conversational timeline history below, and condense it entirely into a "
-            "single, tight narrative paragraph focusing exclusively on key topics decided or files changed.\n\n"
-            f"Timeline logs to compress:\n{raw_text_to_condense}"
-        )
-        compaction_response = groq_client.chat.completions.create(
+            if msg.get("tool_calls"): content += " [Tool Use Invocations]"
+            raw_text += f"{msg.get('role').upper()}: {content}\n"
+        compaction_prompt = f"Condense this conversation timeline history entirely into a single narrative paragraph:\n\n{raw_text}"
+        response = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "system", "content": compaction_prompt}]
         )
-        compressed_summary = compaction_response.choices[0].message.content
-        print("✅ Distillation complete! Saved workspace chat capacity.\n")
-        optimized_history = [
-            system_prompt,
-            {"role": "system", "content": f"Summary profile of previous interactions: {compressed_summary}"}
-        ]
-        optimized_history.extend(recent_messages)
-        return optimized_history
-    except Exception as e:
-        print(f"⚠️ Memory compaction routine skipped. Reason: {e}")
+        return [system_prompt, {"role": "system", "content": f"Summary profile of previous interactions: {response.choices[0].message.content}"}] + recent_messages
+    except Exception:
         return history
 
-# =====================================================================
-# 💾 AIRA SYSTEM — PERSISTENT STORAGE MEMORY LOADER & FACT INJECTION
-# =====================================================================
+# Load baseline history records configuration layouts
 loaded_profile_context = ""
 if os.path.exists(PROFILE_FILE):
     with open(PROFILE_FILE, "r", encoding="utf-8") as f:
         try:
             profile_data = json.load(f)
             if profile_data:
-                facts_list = [f"{k.upper()}: {v}" for k, v in profile_data.items()]
-                loaded_profile_context = "\nKnown user profile background data:\n" + "\n".join(facts_list)
-        except Exception:
-            pass
+                loaded_profile_context = "\nKnown user profile background data:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in profile_data.items()])
+        except Exception: pass
 
-DEFAULT_SYSTEM_PROMPT = [
-    {
-        "role": "system", 
-        "content": (
-            "You are AIRA, a professional and highly capable AI agent built by Shadik. "
-            "Respond directly and concisely. Balance helpful technical insight with adaptive candor and a touch of wit. "
-            f"You are talking directly to Shadik on his personal computer. {loaded_profile_context}\n\n"
-            "Natively incorporate this context into your tone. Keep response processing efficient, and use tools automatically when required."
-        )
-    }
-]
+DEFAULT_SYSTEM_PROMPT = [{
+    "role": "system", 
+    "content": f"You are AIRA, a professional AI agent built by Shadik. Respond directly and concisely with wit. You are running on Shadik's desktop app. {loaded_profile_context}"
+}]
 
 if os.path.exists(MEMORY_FILE):
     with open(MEMORY_FILE, "r") as f:
         try:
             conversation_history = json.load(f)
-            print("🤖 Loaded previous memory layout successfully!")
             if conversation_history and conversation_history[0]["role"] == "system":
                 conversation_history[0] = DEFAULT_SYSTEM_PROMPT[0]
-        except Exception:
-            conversation_history = list(DEFAULT_SYSTEM_PROMPT)
-            print("⚠️ Memory file was unreadable. Started with fresh profile.")
+        except Exception: conversation_history = list(DEFAULT_SYSTEM_PROMPT)
 else:
     conversation_history = list(DEFAULT_SYSTEM_PROMPT)
 
-if loaded_profile_context:
-    print("🧠 Long-term user profile background facts injected into the system prompt core!")
-
-print("\n⚡ AIRA is online and running! Type 'exit' to cleanly close down.")
-print("🌐 Ask questions naturally—AIRA will search the internet autonomously when required.")
-print("📄 Format PDF document readings as: 'pdf: filename.pdf'\n")
-
 # =====================================================================
-# 💬 AIRA SYSTEM — INTERACTIVE MAIN LOOP
+# 🎨 LEVEL 8: NATIVE DESKTOP GRAPHICAL APPLICATION SHELL DESIGN
 # =====================================================================
-while True:
-    conversation_history = auto_compact_history(conversation_history, client)
-    user_input = input("You: ").strip()
-    
-    if user_input.lower() == "exit":
-        print("💾 Saving conversation logs securely to disk... Goodbye Shadik!")
-        with open(MEMORY_FILE, "w") as f:
-            json.dump(conversation_history, f)
-        break
-
-    if not user_input:
-        continue
-
-    if user_input.startswith("pdf:"):
-        file_name = user_input[4:].strip()
-        print(f"📄 Scraping text content out of target document: '{file_name}'...")
-        pdf_extracted_text = read_pdf(file_name)
-        prompt_with_context = f"Here is the PDF content from file '{file_name}':\n\n{pdf_extracted_text}\n\nAnalyze and break down this data concisely for the user."
-        conversation_history.append({"role": "user", "content": prompt_with_context})
-    else:
-        conversation_history.append({"role": "user", "content": user_input})
-
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=conversation_history,
-            tools=aira_tools,        
-            tool_choice="auto"       
-        )
+class AIRAGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("AIRA OS — Ultimate Personal AI Assistant")
+        self.root.geometry("850x600")
+        self.root.configure(bg="#111116")
         
-        message = response.choices[0].message
+        # 📊 Top Hardware Telemetry Bar
+        self.telemetry_frame = tk.Frame(root, bg="#1a1a24", height=35)
+        self.telemetry_frame.pack(fill=tk.X, side=tk.TOP)
         
-        if message.tool_calls:
-            print("\n🤖 [AIRA Agent Mode Triggered!]")
-            serialized_tool_calls = []
-            for tool_call in message.tool_calls:
-                serialized_tool_calls.append({
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments
-                    }
-                })
+        self.telemetry_label = tk.Label(self.telemetry_frame, text="System Dashboard Loading...", font=("Consolas", 10), fg="#00ffcc", bg="#1a1a24")
+        self.telemetry_label.pack(pady=6)
+        self.update_telemetry_loop()
+        
+        # 💬 Main Chat Display Screen Window Layout Area Container Component Block
+        self.chat_display = scrolledtext.ScrolledText(root, bg="#0d0d11", fg="#e2e2ea", font=("Segoe UI", 11), wrap=tk.WORD, state=tk.DISABLED, bd=0)
+        self.chat_display.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        self.append_chat_message("AIRA", "Online and operational. Systems initialized, Shadik.")
+        
+        # ⌨️ Bottom Entry Row Configuration
+        self.input_frame = tk.Frame(root, bg="#111116")
+        self.input_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=15)
+        
+        self.entry_field = tk.Entry(self.input_frame, bg="#1d1d26", fg="#ffffff", font=("Segoe UI", 12), insertbackground="white", bd=0)
+        self.entry_field.pack(fill=tk.X, side=tk.LEFT, expand=True, ipady=10, padx=(0, 10))
+        self.entry_field.bind("<Return>", lambda event: self.trigger_message_processing())
+        
+        self.send_button = tk.Button(self.input_frame, text="EXECUTE", font=("Segoe UI Bold", 10), bg="#00ffcc", fg="#0d0d11", activebackground="#00ccaa", activeforeground="#0d0d11", bd=0, width=12, command=self.trigger_message_processing)
+        self.send_button.pack(side=tk.RIGHT, ipady=8)
+
+    def append_chat_message(self, sender: str, content: str):
+        self.chat_display.config(state=tk.NORMAL)
+        self.chat_display.insert(tk.END, f"\n【 {sender} 】\n", "sender_tag" if sender == "You" else "aira_tag")
+        self.chat_display.insert(tk.END, f"{content}\n")
+        self.chat_display.tag_config("sender_tag", foreground="#00ffcc", font=("Segoe UI Bold", 11))
+        self.chat_display.tag_config("aira_tag", foreground="#ff007f", font=("Segoe UI Bold", 11))
+        self.chat_display.see(tk.END)
+        self.chat_display.config(state=tk.DISABLED)
+
+    def update_telemetry_loop(self):
+        try:
+            cpu = psutil.cpu_percent()
+            ram = psutil.virtual_memory().percent
+            batt = psutil.sensors_battery()
+            batt_str = f"{batt.percent}%" if batt else "AC Drive"
+            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {cpu}%  |  RAM: {ram}%  |  BATTERY: {batt_str}  |  ENGINE: LLAMA-3.1-8B-INSTANT")
+        except Exception: pass
+        self.root.after(3000, self.update_telemetry_loop)
+
+    def trigger_message_processing(self):
+        query = self.entry_field.get().strip()
+        if not query: return
+        self.entry_field.delete(0, tk.END)
+        self.append_chat_message("You", query)
+        
+        # Deploy pipeline execution tracking matrix threads to maximize asynchronous speed curves
+        threading.Thread(target=self.process_agent_thought_loop, args=(query,), daemon=True).start()
+
+    def process_agent_thought_loop(self, user_text: str):
+        global conversation_history
+        conversation_history = auto_compact_history(conversation_history, client)
+        
+        if user_text.startswith("pdf:"):
+            file_name = user_text[4:].strip()
+            text_payload = read_pdf(file_name)
+            conversation_history.append({"role": "user", "content": f"PDF File content for {file_name}:\n\n{text_payload}"})
+        else:
+            conversation_history.append({"role": "user", "content": user_text})
             
-            conversation_history.append({
-                "role": "assistant",
-                "content": message.content,
-                "tool_calls": serialized_tool_calls
-            })
-            
-            for tool_call in message.tool_calls:
-                func_name = tool_call.function.name
-                try:
-                    func_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
-                except Exception:
-                    func_args = {}
-                
-                if not func_args or not isinstance(func_args, dict):
-                    func_args = {}
-                
-                print(f"👉 Dynamic Registry Lookup: Executing tool '{func_name}'")
-                print(f"👉 Arguments extracted from Groq context: {func_args}")
-                
-                if func_name in tool_registry:
-                    action_function = tool_registry[func_name]
-                    execution_result = action_function(**func_args)  
-                    
-                    conversation_history.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": func_name,
-                        "content": execution_result
-                    })
-            
-            print("⏳ Feeding action results back to AIRA for confirmation text assembly...")
-            final_response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=conversation_history
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant", messages=conversation_history, tools=aira_tools, tool_choice="auto"
             )
-            final_reply = final_response.choices[0].message.content
-            print(f"\nAIRA: {final_reply}\n")
-            aira_speak(final_reply)  # 🌟 LEVEL 7: Voice Audio Output Execution Trigger
-            conversation_history.append({"role": "assistant", "content": final_reply})
-            continue  
+            msg = response.choices[0].message
             
-        ai_reply = message.content
-        if ai_reply:
-            print(f"\nAIRA: {ai_reply}\n")
-            aira_speak(ai_reply)  # 🌟 LEVEL 7: Voice Audio Output Execution Trigger
-            conversation_history.append({"role": "assistant", "content": ai_reply})
+            if msg.tool_calls:
+                serialized_calls = []
+                for tc in msg.tool_calls:
+                    serialized_calls.append({"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}})
+                conversation_history.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
+                
+                for tc in msg.tool_calls:
+                    name = tc.function.name
+                    try: args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                    except Exception: args = {}
+                    
+                    if name in tool_registry:
+                        res = tool_registry[name](**args)
+                        conversation_history.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
+                
+                final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=conversation_history)
+                reply = final_res.choices[0].message.content
+            else:
+                reply = msg.content
+                
+            if reply:
+                self.root.after(0, lambda: self.append_chat_message("AIRA", reply))
+                # Trigger vocalizations inside the decoupled network thread pipeline
+                aira_speak(reply)
+                conversation_history.append({"role": "assistant", "content": reply})
+        except Exception as e:
+            self.root.after(0, lambda: self.append_chat_message("SYSTEM ERROR", f"Connection processing failure: {e}"))
+
+# Main Initialization Pipeline Thread Entry Coordinates
+if __name__ == "__main__":
+    app_window = tk.Tk()
+    gui_app = AIRAGUI(app_window)
+    
+    def handle_secure_shutdown():
+        with open(MEMORY_FILE, "w") as out_file:
+            json.dump(conversation_history, out_file)
+        app_window.destroy()
         
-    except Exception as e:
-        print(f"❌ Connection error interacting with the AI processing node: {e}")
-        if "400" in str(e):
-            print("⚠️ [Self-Healing] Broken tool sequence detected. Resetting chat history to clear the lock...")
-            conversation_history = list(DEFAULT_SYSTEM_PROMPT)
-            with open(MEMORY_FILE, "w") as f:
-                json.dump(conversation_history, f)
-            print("✅ History cleaned successfully. Please try your message again!\n")
+    app_window.protocol("WM_DELETE_WINDOW", handle_secure_shutdown)
+    app_window.mainloop()
