@@ -25,7 +25,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Data-Isolated Cloud Engine", version="1.3.0")
+app = FastAPI(title="AIRA OS Production Cloud Engine", version="1.4.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -472,7 +472,7 @@ def fetch_isolated_user_history(user_id: str):
     system_prompt_string = (
         "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
         "Respond directly and concisely with adaptive candor and a touch of wit. "
-        f"You are running inside a multi-tenant web server router. Active session user footprint token: {user_id}. {profile_ctx}\n\n"
+        f"You are running inside a production cloud web architecture. Active session user token: {user_id}. {profile_ctx}\n\n"
         "ROW-ISOLATION SECURITY OPERATIONAL RULES:\n"
         "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
         "2. Natively invoke structural action tools autonomously whenever requested by user intents.\n"
@@ -534,7 +534,6 @@ def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
                 if not isinstance(args, dict): 
                     args = {}
                 
-                # Secure parameter packing injection: Force the session user_id directly into tool arguments mapping!
                 args["user_id"] = session_user_id
                     
                 if name in tool_registry:
@@ -558,10 +557,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 19 Data Isolation] Telegram Listener Node Standby: Token missing.")
+        print("🪐 [Level 20 Production Engine] Telegram Listener Standby Mode: Token missing.")
         return
         
-    print("🚀 [Level 19 Data Isolation] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 20 Production Engine] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -576,9 +575,8 @@ def running_multiplatform_listener_loop():
                         chat_id = str(update["message"]["chat"]["id"])
                         user_msg = update["message"]["text"]
                         
-                        # MULTI-TENANT ROW SEPARATION: Bind this thread's downstream queries to this exact Telegram user ID string!
                         active_scoped_user = f"telegram_{chat_id}"
-                        print(f"📲 Isolated Wireless User Packet Caught: '{user_msg}' from profile '{active_scoped_user}'")
+                        print(f"📲 Production Data Node Caught: '{user_msg}' from account '{active_scoped_user}'")
                         
                         aira_reply = execute_brain_inference(user_msg, session_user_id=active_scoped_user)
                         
@@ -596,7 +594,7 @@ def running_multiplatform_listener_loop():
 async def serve_root_api_healthcheck():
     return {
         "status": "online",
-        "engine": "AIRA OS SaaS Isolated Core",
+        "engine": "AIRA OS SaaS Production Stack Core",
         "timestamp": datetime.now().isoformat(),
         "sandbox_root": WORKSPACE_ROOT,
         "telemetry": {
@@ -605,17 +603,46 @@ async def serve_root_api_healthcheck():
         }
     }
 
+@app.post("/auth/signup")
+async def register_saas_user(payload: UserAuthPayload):
+    username_cleaned = payload.username.strip().lower()
+    if not username_cleaned or not payload.password:
+        raise HTTPException(status_code=400, detail="Signup verification parameter validation failed.")
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users WHERE username = ?", (username_cleaned,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="Username selection already taken.")
+    generated_user_id = f"user_{int(time.time())}"
+    hashed_pw = hash_password(payload.password)
+    cursor.execute("INSERT INTO users (user_id, username, hashed_password, created_at) VALUES (?, ?, ?, ?)", (generated_user_id, username_cleaned, hashed_pw, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "Account initialized.", "assigned_user_id": generated_user_id}
+
+@app.post("/auth/login")
+async def login_saas_user(payload: UserAuthPayload):
+    username_cleaned = payload.username.strip().lower()
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, hashed_password FROM users WHERE username = ?", (username_cleaned,))
+    record = cursor.fetchone()
+    conn.close()
+    if not record:
+        raise HTTPException(status_code=401, detail="Invalid credential keys.")
+    user_id, stored_hashed_password = record
+    if hash_password(payload.password) != stored_hashed_password:
+        raise HTTPException(status_code=401, detail="Password validation signature mismatch.")
+    return {"status": "authenticated", "authenticated_user_id": user_id}
+
 @app.post("/chat")
 async def serve_inference_endpoint(payload: ChatPayload):
-    """Secure inbound programmatic routing connector handling context-isolated request blocks."""
     try:
         target_user = payload.user_id.strip().lower()
         user_message = payload.message.strip()
-        
         if not target_user or not user_message:
             raise HTTPException(status_code=400, detail="Inbound data packet missing structural validation properties.")
-        
-        # Trigger inference explicitly isolated to the user_id passed via this specific HTTP payload request
         agent_reply = execute_brain_inference(user_message, session_user_id=target_user)
         return {"sender": "AIRA", "response": agent_reply, "user_context_bound": target_user, "timestamp": datetime.now().isoformat()}
     except Exception as e:
@@ -627,5 +654,7 @@ if __name__ == "__main__":
     
     # Run the production API server engine node
     import uvicorn
-    print("⚡ Deploying Explicitly Parameter-Isolated Multi-Tenant Node Server...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # DYNAMIC DOCKER CONTAINER ENVIRONMENT PORT ALLOCATION
+    cloud_assigned_port = int(os.getenv("PORT", 8000))
+    print(f"⚡ Deploying Production-Optimized Engine Node Server on Port {cloud_assigned_port}...")
+    uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
