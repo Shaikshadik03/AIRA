@@ -25,7 +25,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.6.0")
+app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.7.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -105,6 +105,18 @@ def init_relational_database():
             user_id TEXT,
             title TEXT,
             content TEXT,
+            timestamp TEXT
+        )
+    """)
+
+    # SaaS Context-Isolated Task Kanban Table Layout
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            title TEXT,
+            priority TEXT,
+            status TEXT,
             timestamp TEXT
         )
     """)
@@ -338,7 +350,6 @@ def get_financial_report(user_id: str, **kwargs) -> str:
         return f"System Error: Isolated metrics pipeline failure: {e}"
 
 def create_workspace_note(title: str, content: str, user_id: str, **kwargs) -> str:
-    """Creates a structured, context-isolated text record row directly inside the note vault database table."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -353,7 +364,6 @@ def create_workspace_note(title: str, content: str, user_id: str, **kwargs) -> s
         return f"System Error: Note transaction append failed: {e}"
 
 def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
-    """Scans note text data metrics row-by-row to extract matching key string terms."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -374,6 +384,52 @@ def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
         return "\n".join(results)
     except Exception as e:
         return f"System Error: Vault indexing search operation aborted: {e}"
+
+def create_task(title: str, priority: str, user_id: str, **kwargs) -> str:
+    """Generates a tracking card row inside the context-isolated Kanban project workspace table."""
+    try:
+        p_clean = priority.lower().strip()
+        if p_clean not in ["high", "medium", "low"]:
+            p_clean = "medium"
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO tasks (user_id, title, priority, status, timestamp) VALUES (?, ?, ?, 'pending', ?)",
+            (user_id, title.strip(), p_clean, datetime.now().strftime("%Y-%m-%d %I:%M %p"))
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Task registered securely! Locked '{title}' into your backlog with [{p_clean.upper()}] priority."
+    except Exception as e:
+        return f"System Error: Kanban board append transaction aborted: {e}"
+
+def get_task_matrix(user_id: str, **kwargs) -> str:
+    """Queries context rows to format an urgency prioritization project table layout string."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, priority, status FROM tasks WHERE user_id = ? AND status = 'pending'", (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return f"System message: Your workspace task board is clear! Great job, {user_id}."
+            
+        matrix = {"high": [], "medium": [], "low": []}
+        for title, priority, status in rows:
+            if priority in matrix:
+                matrix[priority].append(title)
+                
+        output = [f"📋 Production Workspace Kanban Priority Matrix [{user_id}]:"]
+        for level in ["high", "medium", "low"]:
+            output.append(f"\n⚡ {level.upper()} PRIORITY BACKLOG:")
+            if not matrix[level]:
+                output.append("  (No urgent entries logged in this tier)")
+            for item in matrix[level]:
+                output.append(f"  [-] {item}")
+        return "\n".join(output)
+    except Exception as e:
+        return f"System Error: Failed to parse relational task parameters: {e}"
 
 def get_hardware_status(**kwargs) -> str:
     try:
@@ -535,6 +591,7 @@ tool_registry = {
     "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file, "read_pdf": read_pdf,
     "log_expense": log_expense, "set_monthly_budget": set_monthly_budget, "add_subscription": add_subscription, "get_financial_report": get_financial_report,
     "create_workspace_note": create_workspace_note, "search_workspace_notes": search_workspace_notes,
+    "create_task": create_task, "get_task_matrix": get_task_matrix,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
     "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
@@ -559,6 +616,8 @@ aira_tools = [
     {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a data summary tracking spending aggregates, category budget compliance ratios, and subscription timelines.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "create_workspace_note", "description": "Saves a text knowledge block record directly into the secure cloud database note vault with a search title.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"}}, "required": ["title", "content"]}}},
     {"type": "function", "function": {"name": "search_workspace_notes", "description": "Scans your row-isolated relational database notes vault for matching title or content search keywords.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "create_task", "description": "Registers a new task execution ticket card into your multi-tenant workspace project backlog board.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "priority": {"type": "string", "description": "Must be 'high', 'medium', or 'low'"}}, "required": ["title", "priority"]}}},
+    {"type": "function", "function": {"name": "get_task_matrix", "description": "Pulls your row-isolated task backlog and organizes active cards into a clean priority matrix board layout.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
@@ -676,10 +735,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 22 Note Vault] Telegram Listener Standby Mode: Token missing.")
+        print("🪐 [Level 23 Kanban Matrix] Telegram Listener Standby Mode: Token missing.")
         return
         
-    print("🚀 [Level 22 Note Vault] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 23 Kanban Matrix] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -774,5 +833,5 @@ if __name__ == "__main__":
     # Run the production API server engine node
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Production-Optimized Note Vault Server on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Production-Optimized Kanban Matrix Server on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
