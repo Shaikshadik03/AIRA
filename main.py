@@ -5,6 +5,7 @@ import webbrowser
 import requests
 import time
 import sqlite3
+import hashlib
 from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
@@ -15,6 +16,7 @@ import pyttsx3
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 # Load environment variables from your .env file
 load_dotenv()
@@ -23,7 +25,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Relational Cloud Engine", version="1.1.0")
+app = FastAPI(title="AIRA OS Relational Cloud Engine with Auth", version="1.2.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -32,12 +34,29 @@ DB_FILE = "aira_cloud_node.db"
 CURRENT_USER_CONTEXT = "shadik_master"
 
 # =====================================================================
+# 🔐 CRYPTOGRAPHIC PASSWORD HASHING UTILITY
+# =====================================================================
+def hash_password(password: str) -> str:
+    """Converts a raw password string into a secure cryptographic SHA-256 hex digest."""
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+# =====================================================================
 # 🗄️ RELATIONAL DATABASE INITIALIZATION & SCHEMA SETUP
 # =====================================================================
 def init_relational_database():
     """Compiles local SQL storage structures to handle multi-tenant isolation schemas safely."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    
+    # SaaS User Authentication Accounts Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            username TEXT UNIQUE,
+            hashed_password TEXT,
+            created_at TEXT
+        )
+    """)
     
     # User Profile Memory Table Layout
     cursor.execute("""
@@ -89,6 +108,13 @@ def init_relational_database():
 init_relational_database()
 
 # =====================================================================
+# 📦 FASTAPI INPUT/OUTPUT VALDIATION VALIDATORS (PYDANTIC SCHEMAS)
+# =====================================================================
+class UserAuthPayload(BaseModel):
+    username: str
+    password: str
+
+# =====================================================================
 # 🔒 SECURE SANDBOX DIRECTORY GUARDRAIL LAYER
 # =====================================================================
 WORKSPACE_ROOT = os.path.abspath(os.getcwd())
@@ -130,7 +156,7 @@ def aira_speak(text: str):
         pass
 
 # =====================================================================
-# 🚀 AIRA AGENT ACTION TOOL CORES (RE-ENGINEERED FOR SQL TRANSACTIONS)
+# 🚀 AIRA AGENT ACTION TOOL CORES
 # =====================================================================
 
 def open_website(url: str) -> str:
@@ -561,10 +587,10 @@ def running_multiplatform_listener_loop():
     global CURRENT_USER_CONTEXT
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 17 Database Server] Telegram Listener Node Standby: Token missing.")
+        print("🪐 [Level 18 Auth Server] Telegram Listener Node Standby: Token missing.")
         return
         
-    print("🚀 [Level 17 Database Server] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 18 Auth Server] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -592,18 +618,76 @@ def running_multiplatform_listener_loop():
         time.sleep(1)
 
 # =====================================================================
-# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE
+# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH AUTH CONTROLS)
 # =====================================================================
 
 @app.get("/")
 async def serve_root_api_healthcheck():
     return {
         "status": "online",
-        "engine": "AIRA OS Relational Server Engine",
+        "engine": "AIRA OS SaaS Relational Engine with Authentication",
         "timestamp": datetime.now().isoformat(),
         "database_status": "connected_sqlite3",
         "active_sandbox": WORKSPACE_ROOT
     }
+
+@app.post("/auth/signup")
+async def register_saas_user(payload: UserAuthPayload):
+    """Generates a secure, hashed account record matching profile keys within our relational table."""
+    username_cleaned = payload.username.strip().lower()
+    if not username_cleaned or not payload.password:
+        raise HTTPException(status_code=400, detail="Signup verification parameter validation failed.")
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        # Check if username collision already exists
+        cursor.execute("SELECT user_id FROM users WHERE username = ?", (username_cleaned,))
+        if cursor.fetchone():
+            conn.close()
+            raise HTTPException(status_code=400, detail="SaaS account registration aborted. Username selection already taken.")
+            
+        generated_user_id = f"user_{int(time.time())}"
+        hashed_pw = hash_password(payload.password)
+        
+        cursor.execute(
+            "INSERT INTO users (user_id, username, hashed_password, created_at) VALUES (?, ?, ?, ?)",
+            (generated_user_id, username_cleaned, hashed_pw, datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+        return {"status": "success", "message": "Account initialized.", "assigned_user_id": generated_user_id}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database transaction signature initialization failed: {e}")
+
+@app.post("/auth/login")
+async def login_saas_user(payload: UserAuthPayload):
+    """Validates password signature strings against relational hash locks."""
+    username_cleaned = payload.username.strip().lower()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, hashed_password FROM users WHERE username = ?", (username_cleaned,))
+        record = cursor.fetchone()
+        conn.close()
+        
+        if not record:
+            raise HTTPException(status_code=401, detail="Authentication failed. Invalid credential keys.")
+            
+        user_id, stored_hashed_password = record
+        incoming_hashed_pw = hash_password(payload.password)
+        
+        if incoming_hashed_pw != stored_hashed_password:
+            raise HTTPException(status_code=401, detail="Authentication failed. Password validation signature mismatch.")
+            
+        return {"status": "authenticated", "authenticated_user_id": user_id, "message": "Session token unlocked successfully."}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication core layer handling error: {e}")
 
 @app.post("/chat")
 async def serve_inference_endpoint(request: Request):
@@ -629,5 +713,5 @@ if __name__ == "__main__":
     
     # Run the production API server engine node
     import uvicorn
-    print("⚡ Deploying Multi-Tenant Core Node Server Framework...")
+    print("⚡ Deploying Authenticated Multi-Tenant Node Server Framework...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
