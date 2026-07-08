@@ -6,6 +6,7 @@ import requests
 import time
 import sqlite3
 import hashlib
+import shutil
 from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
@@ -25,10 +26,11 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.8.0")
+app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.9.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
+BACKUP_DIR = "backups"
 
 # =====================================================================
 # 🔐 CRYPTOGRAPHIC PASSWORD HASHING UTILITY
@@ -154,6 +156,9 @@ def init_relational_database():
     """)
     conn.commit()
     conn.close()
+
+    # Build backup folder directory securely if missing on runtime launch
+    os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # Fire up relational schemas on core runtime initialization
 init_relational_database()
@@ -440,7 +445,6 @@ def get_task_matrix(user_id: str, **kwargs) -> str:
         return f"System Error: Failed to parse relational task parameters: {e}"
 
 def log_user_action(action: str, user_id: str, **kwargs) -> str:
-    """Manually registers an entry into the immutable multi-tenant platform security event tracking table."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -455,7 +459,6 @@ def log_user_action(action: str, user_id: str, **kwargs) -> str:
         return f"System Error: Security logging transaction failed: {e}"
 
 def get_audit_trail(user_id: str, **kwargs) -> str:
-    """Queries row-isolated security rows to format a timestamped transaction tracking feed string."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -472,6 +475,37 @@ def get_audit_trail(user_id: str, **kwargs) -> str:
         return "\n".join(feed)
     except Exception as e:
         return f"System Error: Failed to retrieve isolated telemetry structures: {e}"
+
+def trigger_database_backup(**kwargs) -> str:
+    """Creates a timestamped snapshot partition duplicate copy of the relational core file."""
+    try:
+        if not os.path.exists(DB_FILE):
+            return "System Error: Cannot back up database because the core file hasn't been initialized yet."
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"backup_aira_{timestamp}.db"
+        target_path = os.path.join(BACKUP_DIR, backup_filename)
+        
+        # Execute hot copy transaction snapshot duplication natively
+        shutil.copy2(DB_FILE, target_path)
+        return f"System message: Relational snapshot generated flawlessly! Saved copy as '{target_path}'."
+    except Exception as e:
+        return f"System Error: Cold storage backup duplicate loop aborted: {e}"
+
+def list_system_backups(**kwargs) -> str:
+    """Scans the sandboxed cloud recovery folder to index all cold-storage recovery points."""
+    try:
+        files = os.listdir(BACKUP_DIR)
+        backup_files = [f for f in files if f.startswith("backup_aira_") and f.endswith(".db")]
+        if not backup_files:
+            return "System message: Cold-storage recovery vault is empty. No backup logs registered."
+            
+        report = ["📂 Discovered System Recovery Restore Point Nodes:"]
+        for bf in sorted(backup_files, reverse=True):
+            file_size = os.path.getsize(os.path.join(BACKUP_DIR, bf)) / 1024
+            report.append(f"  * {bf} ({file_size:.2f} KB)")
+        return "\n".join(report)
+    except Exception as e:
+        return f"System Error: Failed to list recovery store files: {e}"
 
 def get_hardware_status(**kwargs) -> str:
     try:
@@ -635,6 +669,7 @@ tool_registry = {
     "create_workspace_note": create_workspace_note, "search_workspace_notes": search_workspace_notes,
     "create_task": create_task, "get_task_matrix": get_task_matrix,
     "log_user_action": log_user_action, "get_audit_trail": get_audit_trail,
+    "trigger_database_backup": trigger_database_backup, "list_system_backups": list_system_backups,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
     "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
@@ -661,6 +696,8 @@ aira_tools = [
     {"type": "function", "function": {"name": "get_task_matrix", "description": "Pulls your row-isolated task backlog and organizes active cards into a clean priority matrix board layout.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "log_user_action", "description": "Appends a transactional tracking parameter description into the unalterable system metrics history log table.", "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]}}},
     {"type": "function", "function": {"name": "get_audit_trail", "description": "Pulls a chronological context log feed tracking all core platform interactions associated with your unique account footprint.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "trigger_database_backup", "description": "Triggers an instant, hot point-in-time duplicate safety copy snapshot of the live data files.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "list_system_backups", "description": "Queries the isolated cold storage archives folder to index all available recovery node points.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
@@ -696,7 +733,7 @@ def fetch_isolated_user_history(user_id: str):
         f"You are running inside a production cloud web architecture. Active session user token: {user_id}. {profile_ctx}\n\n"
         "SAAS TELEMETRY RULES:\n"
         "1. Chat completely naturally, casually, and intelligently when answering conversational prompts.\n"
-        "2. Natively invoke structural auditing tools autonomously whenever requested by user intents.\n"
+        "2. Natively invoke structural backup recovery tools autonomously whenever requested by user intents.\n"
         "3. You operate within a strict multi-tenant framework. Do not pollute overlapping cross-tenant session arrays.\n"
         "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
@@ -778,10 +815,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 21 Toolkit Node] Telegram Listener Standby Mode: Token missing.")
+        print("🪐 [Level 25 Backup Engine] Telegram Listener Standby Mode: Token missing.")
         return
         
-    print("🚀 [Level 21 Toolkit Node] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 25 Backup Engine] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -801,8 +838,9 @@ def running_multiplatform_listener_loop():
                         
                         aira_reply = execute_brain_inference(user_msg, session_user_id=active_scoped_user)
                         
-                        send_url = f"{base_url}/sendMessage"
-                        requests.post(send_url, json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
+                        send_url = f"/sendMessage"
+                        # Standard web communication payload mapping
+                        requests.post(f"{base_url}{send_url}", json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
         except Exception:
             pass
         time.sleep(1)
@@ -876,5 +914,5 @@ if __name__ == "__main__":
     # Run the production API server engine node
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Production-Optimized Audit Engine Server on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Production-Optimized Backup Engine Server on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
