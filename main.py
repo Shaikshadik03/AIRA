@@ -1,7 +1,7 @@
 import os
 import json
-import webbrowser  # Added for V4: Native tool use to open browser windows
-from datetime import datetime  # Added for V4: Native tool use to access system clock
+import webbrowser  # Preserved V4: Native tool use to open browser windows
+from datetime import datetime  # Preserved V4: Native tool use to access system clock
 from dotenv import load_dotenv
 from groq import Groq
 from ddgs import DDGS      # Preserved V3: DuckDuckGo Search Engine
@@ -40,16 +40,84 @@ def get_current_date() -> str:
 def list_files() -> str:
     """Scans the current project directory and returns a list of all files inside."""
     try:
-        # os.listdir(".") scans the current active workspace directory folder
         files = os.listdir(".")
         if not files:
             return "System message: The current directory workspace folder is entirely empty."
-        
-        # Turn the Python array into a clean string layout using newline joins
         bulleted_files = "\n".join([f"- {item}" for item in files])
         return f"System message: Here are the active workspace files found:\n{bulleted_files}"
     except Exception as e:
         return f"System Error: Unable to scan file system profile. Reason: {e}"
+
+def create_file(filename: str, content: str = "") -> str:
+    """Creates a new text file inside the local project workspace folder."""
+    try:
+        if "/" in filename or "\\" in filename:
+            return "System Error: Security violation. Files must be created directly in the workspace root."
+        
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"System message: Successfully created file '{filename}' inside the workspace directory."
+    except Exception as e:
+        return f"System Error: Failed to execute file creation payload. Reason: {e}"
+
+def create_folder(foldername: str) -> str:
+    """Creates a brand-new directory folder inside the local project workspace folder."""
+    try:
+        if "/" in foldername or "\\" in foldername:
+            return "System Error: Security violation. Folders must be created directly inside the workspace root."
+        if os.path.exists(foldername):
+            return f"System message: A folder named '{foldername}' already exists in this directory."
+            
+        os.makedirs(foldername, exist_ok=True)
+        return f"System message: Successfully created a new empty folder directory named '{foldername}'."
+    except Exception as e:
+        return f"System Error: Failed to build folder directory. Reason: {e}"
+
+def rename_file(old_name: str, new_name: str) -> str:
+    """Renames an existing file or folder inside the local project workspace folder."""
+    try:
+        if "/" in old_name or "\\" in old_name or "/" in new_name or "\\" in new_name:
+            return "System Error: Security violation. Renaming must be done strictly within the workspace root."
+        if not os.path.exists(old_name):
+            return f"System Error: Cannot rename '{old_name}' because it does not exist in this folder."
+            
+        os.rename(old_name, new_name)
+        return f"System message: Successfully renamed '{old_name}' to '{new_name}' safely."
+    except Exception as e:
+        return f"System Error: Failed to change target file name profile. Reason: {e}"
+
+def delete_file(filename: str) -> str:
+    """Deletes an existing file document from the workspace root safely."""
+    try:
+        if "/" in filename or "\\" in filename:
+            return "System Error: Security violation. Deletion targets must live inside the workspace root."
+        if not os.path.exists(filename):
+            return f"System Error: File '{filename}' cannot be deleted because it does not exist."
+        if os.path.isdir(filename):
+            return f"System Error: '{filename}' is a directory folder. Standard file deletion commands cannot delete folders."
+            
+        os.remove(filename)
+        return f"System message: Successfully dropped and deleted file '{filename}' from the local directory layout."
+    except Exception as e:
+        return f"System Error: Failed to execute secure file deletion task. Reason: {e}"
+
+def read_file(filename: str) -> str:
+    """Reads and returns the complete plain text content of a target workspace file document."""
+    try:
+        if "/" in filename or "\\" in filename:
+            return "System Error: Security violation. Reading targets must live directly within the workspace root."
+            
+        if not os.path.exists(filename):
+            return f"System Error: Cannot read file '{filename}' because it does not exist."
+            
+        if os.path.isdir(filename):
+            return f"System Error: '{filename}' is a directory folder structure, not a text file data block."
+            
+        with open(filename, "r", encoding="utf-8") as f:
+            file_data = f.read()
+        return f"Workspace File Execution Payload ('{filename}'):\n{file_data}"
+    except Exception as e:
+        return f"System Error: Failed to extract internal text string matrix. Reason: {e}"
 
 
 # 2. Scalable Tool Registry Directory Mapping
@@ -57,7 +125,12 @@ tool_registry = {
     "open_website": open_website,
     "get_current_time": get_current_time,
     "get_current_date": get_current_date,
-    "list_files": list_files  # Newly registered file scanning capability pointer!
+    "list_files": list_files,
+    "create_file": create_file,
+    "create_folder": create_folder,
+    "rename_file": rename_file,
+    "delete_file": delete_file,
+    "read_file": read_file  # Level 2 Blueprint Hook Active
 }
 
 # 3. Dynamic Native AI Agent Tool Blueprints (JSON Schema Toolbox Array)
@@ -66,7 +139,7 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "open_website",
-            "description": "Opens any web URL in the browser. Use this whenever the user asks to open or navigate to a website (e.g., YouTube, Google, GitHub).",
+            "description": "Opens any web URL in the browser. Use this whenever the user asks to open or navigate to a website.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -83,7 +156,7 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "get_current_time",
-            "description": "Returns the current local real-world time. Use this whenever the user explicitly asks for the time, clock status, or what time it is.",
+            "description": "Returns the current local real-world time. Use this whenever the user explicitly asks for the time.",
             "parameters": {
                 "type": "object",
                 "properties": {},  
@@ -95,7 +168,7 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "get_current_date",
-            "description": "Returns the current local real-world date. Use this whenever the user explicitly asks for today's date, what day it is, or calendar status.",
+            "description": "Returns the current local real-world date. Use this whenever the user explicitly asks for today's date.",
             "parameters": {
                 "type": "object",
                 "properties": {},  
@@ -107,11 +180,104 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "list_files",
-            "description": "Lists all file documents and folders inside the current project workspace directory. Use this when the user asks to see what files exist, what is in the folder, or to view workspace contents.",
+            "description": "Lists all file documents inside the current project workspace directory.",
             "parameters": {
                 "type": "object",
-                "properties": {},  # Empty because it requires no extra text entries to read a local folder!
+                "properties": {},  
                 "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_file",
+            "description": "Creates a brand-new file in the local project workspace. Use this whenever the user tells you to create, write, generate, or make a file.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "The exact name of the target file to build, including extension. Example: 'notes.txt'."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The text string layout data to compile and write inside the document body."
+                    }
+                },
+                "required": ["filename"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_folder",
+            "description": "Creates a brand-new folder directory in the local project workspace directory. Use this whenever the user asks you to make, generate, or set up a new folder or directory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "foldername": {
+                        "type": "string",
+                        "description": "The target name of the folder directory to generate. Example: 'assets'."
+                    }
+                },
+                "required": ["foldername"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rename_file",
+            "description": "Renames an existing file or folder inside the workspace layout. Use this whenever the user asks to rename, change the name of, or modify a file or folder's title identifier.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "old_name": {
+                        "type": "string",
+                        "description": "The current filename or directory folder name target to be changed. Example: 'draft.txt'."
+                    },
+                    "new_name": {
+                        "type": "string",
+                        "description": "The fresh new name target string to apply to that file or folder. Example: 'final_version.txt'."
+                    }
+                },
+                "required": ["old_name", "new_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_file",
+            "description": "Deletes an existing file document completely from the local folder workspace environment. Use this whenever the user tells you to delete, remove, drop, or destroy an explicit target file name.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "The exact name of the target file to remove from disk. Example: 'old_notes.txt'."
+                    }
+                },
+                "required": ["filename"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Reads the plain text string data stored inside an existing text file doc. Use this tool whenever the user asks you to see inside, view content, read text out of, or look at a specific workspace text file name.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "The exact string filename identifier target to extract text from. Example: 'config.json'."
+                    }
+                },
+                "required": ["filename"]
             }
         }
     }
