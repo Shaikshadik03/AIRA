@@ -3,8 +3,7 @@ import json
 import threading
 import webbrowser
 import requests
-import tkinter as tk
-from tkinter import scrolledtext
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
@@ -12,7 +11,10 @@ from ddgs import DDGS
 from pypdf import PdfReader
 import psutil
 import pyttsx3
-import time
+
+# Import modern asynchronous high-speed web framework modules
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 
 # Load environment variables from your .env file
 load_dotenv()
@@ -24,6 +26,10 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 MEMORY_FILE = "memory.json"
 PROFILE_FILE = "profile.json"
 DEADLINES_FILE = "deadlines.json"
+EXPENSES_FILE = "expenses.json"
+
+# Initialize FastAPI Web Application Server Registry Node
+app = FastAPI(title="AIRA OS Engine Core API", version="1.0.0")
 
 # =====================================================================
 # 🔒 SECURE SANDBOX DIRECTORY GUARDRAIL LAYER
@@ -51,7 +57,7 @@ try:
         voice_engine.setProperty('voice', voices[0].id)
     VOICE_AVAILABLE = True
 except Exception as e:
-    print(f"⚠️ Voice engine initialization skipped. Audio output unavailable: {e}")
+    print(f"⚠️ Voice engine initialization skipped. Headless audio channel default: {e}")
     VOICE_AVAILABLE = False
 
 def aira_speak(text: str):
@@ -161,6 +167,50 @@ def read_pdf(file_path: str) -> str:
         return f"PDF Extraction Content Layer Layout ('{file_path}'):\n{text}"
     except Exception as e:
         return f"System Error: Failed to parse PDF document structures: {e}"
+
+def log_expense(amount: float, category: str, description: str) -> str:
+    try:
+        ledger = []
+        if os.path.exists(EXPENSES_FILE):
+            with open(EXPENSES_FILE, "r", encoding="utf-8") as f:
+                try: ledger = json.load(f)
+                except Exception: ledger = []
+        
+        transaction = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+            "amount": float(amount),
+            "category": category.lower().strip(),
+            "description": description.strip()
+        }
+        ledger.append(transaction)
+        
+        with open(EXPENSES_FILE, "w", encoding="utf-8") as f:
+            json.dump(ledger, f, indent=4)
+        return f"System message: Financial ledger updated cleanly! Logged {amount} under '{category}'."
+    except Exception as e:
+        return f"System Error: Financial data append routine failed: {e}"
+
+def get_financial_report() -> str:
+    try:
+        if not os.path.exists(EXPENSES_FILE):
+            return "System message: Financial data registers are currently empty. No transactions logged."
+        with open(EXPENSES_FILE, "r", encoding="utf-8") as f:
+            ledger = json.load(f)
+        if not ledger:
+            return "System message: Financial database sheets contain zero recorded logs."
+        
+        total_spent = sum([item["amount"] for item in ledger])
+        breakdown = {}
+        for item in ledger:
+            cat = item["category"]
+            breakdown[cat] = breakdown.get(cat, 0.0) + item["amount"]
+            
+        report_text = f"📊 Live Financial Accountability Balance Sheet:\n- Overall Aggregate Spending: {total_spent}\n\nCategory Summaries:\n"
+        for category, subtotal in breakdown.items():
+            report_text += f"  * {category.title()}: {subtotal}\n"
+        return report_text
+    except Exception as e:
+        return f"System Error: Failed to compute sheet analytics matrices: {e}"
 
 def get_hardware_status() -> str:
     try:
@@ -315,6 +365,7 @@ tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
     "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file, "read_pdf": read_pdf,
+    "log_expense": log_expense, "get_financial_report": get_financial_report,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
     "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
@@ -333,6 +384,8 @@ aira_tools = [
     {"type": "function", "function": {"name": "delete_file", "description": "Deletes file from directory root completely.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
     {"type": "function", "function": {"name": "read_file", "description": "Reads text strings stored in target file.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
     {"type": "function", "function": {"name": "read_pdf", "description": "Extracts text content from a local PDF document file for analysis or summarization.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]}}},
+    {"type": "function", "function": {"name": "log_expense", "description": "Logs an expense entry with a numeric cost value, strict metadata category, and text tracking details.", "parameters": {"type": "object", "properties": {"amount": {"type": "number"}, "category": {"type": "string"}, "description": {"type": "string"}}, "required": ["amount", "category", "description"]}}},
+    {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a tracking summary parsing total outflux calculations and categorical itemized ledgers.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
@@ -387,10 +440,9 @@ DEFAULT_SYSTEM_PROMPT = [{
         "BALANCED MODE OPERATIONAL RULES:\n"
         "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
         "2. Natively and autonomously invoke your structural tools whenever Shadik asks for concrete actions "
-        "(like opening websites, manipulating files, reading PDFs, checking times, or stopping apps).\n"
-        "3. You operate inside a path sandbox. All file creations, reads, and updates are monitored for absolute system path boundaries.\n"
-        "4. When reading local or uploaded PDF sheets, call 'read_pdf' to process textual matrix layers safely.\n"
-        "5. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
+        "(like opening websites, manipulating files, logging finances, checking times, or stopping apps).\n"
+        "3. You operate inside an isolated path sandbox server framework. All file systems and ledger operations are tracked.\n"
+        "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
 }]
 
@@ -448,10 +500,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 14 Document Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
+        print("🪐 [Level 16 Server Engine] Telegram Node Standby: Token not set.")
         return
         
-    print("🚀 [Level 14 Document Node] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 16 Server Engine] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -465,7 +517,7 @@ def running_multiplatform_listener_loop():
                     if "message" in update and "text" in update["message"]:
                         chat_id = update["message"]["chat"]["id"]
                         user_msg = update["message"]["text"]
-                        print(f"📲 Incoming Mobile Packet Signature: '{user_msg}'")
+                        print(f"📲 Incoming Wireless Data Frame: '{user_msg}'")
                         
                         aira_reply = execute_brain_inference(user_msg)
                         
@@ -475,75 +527,43 @@ def running_multiplatform_listener_loop():
             pass
         time.sleep(1)
 
-
 # =====================================================================
-# NATIVE DESKTOP GRAPHICAL APPLICATION SHELL DESIGN
+# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE
 # =====================================================================
-class AIRAGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("AIRA OS — Ultimate Personal AI Assistant")
-        self.root.geometry("850x600")
-        self.root.configure(bg="#111116")
-        
-        self.telemetry_frame = tk.Frame(root, bg="#1a1a24", height=35)
-        self.telemetry_frame.pack(fill=tk.X, side=tk.TOP)
-        self.telemetry_label = tk.Label(self.telemetry_frame, text="System Dashboard Loading...", font=("Consolas", 10), fg="#00ffcc", bg="#1a1a24")
-        self.telemetry_label.pack(pady=6)
-        self.update_telemetry_loop()
-        
-        self.chat_display = scrolledtext.ScrolledText(root, bg="#0d0d11", fg="#e2e2ea", font=("Segoe UI", 11), wrap=tk.WORD, state=tk.DISABLED, bd=0)
-        self.chat_display.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        self.append_chat_message("AIRA", "Level 14 Document Engine Online. PDF parser linked seamlessly, Shadik.")
-        
-        self.input_frame = tk.Frame(root, bg="#111116")
-        self.input_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=15)
-        self.entry_field = tk.Entry(self.input_frame, bg="#1d1d26", fg="#ffffff", font=("Segoe UI", 12), insertbackground="white", bd=0)
-        self.entry_field.pack(fill=tk.X, side=tk.LEFT, expand=True, ipady=10, padx=(0, 10))
-        self.entry_field.bind("<Return>", lambda event: self.trigger_message_processing())
-        
-        self.send_button = tk.Button(self.input_frame, text="EXECUTE", font=("Segoe UI Bold", 10), bg="#00ffcc", fg="#0d0d11", bd=0, width=12, command=self.trigger_message_processing)
-        self.send_button.pack(side=tk.RIGHT, ipady=8)
 
-    def append_chat_message(self, sender: str, content: str):
-        self.chat_display.config(state=tk.NORMAL)
-        self.chat_display.insert(tk.END, f"\n【 {sender} 】\n", "sender_tag" if sender == "You" else "aira_tag")
-        self.chat_display.insert(tk.END, f"{content}\n")
-        self.chat_display.tag_config("sender_tag", foreground="#00ffcc", font=("Segoe UI Bold", 11))
-        self.chat_display.tag_config("aira_tag", foreground="#ff007f", font=("Segoe UI Bold", 11))
-        self.chat_display.see(tk.END)
-        self.chat_display.config(state=tk.DISABLED)
+@app.get("/")
+async def serve_root_api_healthcheck():
+    """Returns a high-speed system metrics dictionary log payload tracking server state."""
+    return {
+        "status": "online",
+        "engine": "AIRA OS SaaS Agent Core",
+        "timestamp": datetime.now().isoformat(),
+        "sandbox_root": WORKSPACE_ROOT,
+        "telemetry": {
+            "cpu_utilization_percent": psutil.cpu_percent(),
+            "memory_utilization_percent": psutil.virtual_memory().percent
+        }
+    }
 
-    def update_telemetry_loop(self):
-        try:
-            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  INTELLIGENCE: PDF SUMMARIZER ACTIVE")
-        except Exception: pass
-        self.root.after(3000, self.update_telemetry_loop)
-
-    def trigger_message_processing(self):
-        query = self.entry_field.get().strip()
-        if not query: return
-        self.entry_field.delete(0, tk.END)
-        self.append_chat_message("You", query)
-        threading.Thread(target=self.process_agent_thought_loop, args=(query,), daemon=True).start()
-
-    def process_agent_thought_loop(self, user_text: str):
-        global conversation_history
-        reply = execute_brain_inference(user_text)
-        if reply:
-            self.root.after(0, lambda: self.append_chat_message("AIRA", reply))
-            aira_speak(reply)
+@app.post("/chat")
+async def serve_inference_endpoint(request: Request):
+    """Secure inbound programmatic routing connector handling JSON payload message strings."""
+    try:
+        body = await request.json()
+        user_message = body.get("message", "").strip()
+        if not user_message:
+            raise HTTPException(status_code=400, detail="Payload execution request missing required 'message' key parameter.")
+        
+        agent_reply = execute_brain_inference(user_message)
+        return {"sender": "AIRA", "response": agent_reply, "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Internal API Server Exception: {e}"})
 
 if __name__ == "__main__":
+    # Start the persistent Telegram mobile synchronization node in a separate daemon process thread
     threading.Thread(target=running_multiplatform_listener_loop, daemon=True).start()
     
-    app_window = tk.Tk()
-    gui_app = AIRAGUI(app_window)
-    
-    def handle_secure_shutdown():
-        with open(MEMORY_FILE, "w") as out_file:
-            json.dump(conversation_history, out_file)
-        app_window.destroy()
-        
-    app_window.protocol("WM_DELETE_WINDOW", handle_secure_shutdown)
-    app_window.mainloop()
+    # Run the high-speed local HTTP server interface block
+    import uvicorn
+    print("⚡ Starting Local Production Server Stack Engine on Port 8000...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
