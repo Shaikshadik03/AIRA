@@ -2,7 +2,7 @@ import os
 import json
 import threading
 import webbrowser
-import requests            # 🌟 LEVEL 9: Cloud API HTTP Request Engine
+import requests
 import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
@@ -12,6 +12,7 @@ from ddgs import DDGS
 from pypdf import PdfReader
 import psutil
 import pyttsx3
+import time
 
 # Load environment variables from your .env file
 load_dotenv()
@@ -247,23 +248,15 @@ def search_internet(query: str) -> str:
         return f"System Error: Failed to complete internet search: {e}"
 
 def trigger_cloud_integration(endpoint_url: str, payload_json_string: str) -> str:
-    """🌟 LEVEL 9: Dispatches secure HTTP POST data payloads directly to external APIs (Notion, n8n, Cloud services)."""
     try:
-        print(f"📡 [Cloud API Matrix Triggered] Dispatching packet array payload to: {endpoint_url}")
         data_packet = json.loads(payload_json_string)
-        
-        # Add a custom developer identification headers signature tag
         headers = {"Content-Type": "application/json", "User-Agent": "AIRA-OS-Agent-Core"}
-        
-        # Fire the network packet through the web matrix securely with a timeout block
         response = requests.post(endpoint_url, json=data_packet, headers=headers, timeout=8)
-        
         if response.status_code in [200, 201]:
-            return f"System message: Cloud Integration successful! Response code: {response.status_code}. Data synced cleanly."
-        else:
-            return f"System message: Cloud connection reached but returned status code: {response.status_code}. Response message: {response.text}"
+            return f"System message: Cloud Integration successful! Response code: {response.status_code}."
+        return f"System message: Cloud server returned status code: {response.status_code}."
     except Exception as e:
-        return f"System Error: Cloud connection matrix pipeline failed. Reason: {e}"
+        return f"System Error: Cloud integration failed: {e}"
 
 
 # Scalable Tool Registries Mapping Directories
@@ -274,7 +267,7 @@ tool_registry = {
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "save_profile_fact": save_profile_fact,
     "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
-    "trigger_cloud_integration": trigger_cloud_integration  # Level 9 Registered!
+    "trigger_cloud_integration": trigger_cloud_integration
 }
 
 # Dynamic Native AI Agent Tool Blueprints Schema Layout Array
@@ -295,21 +288,7 @@ aira_tools = [
     {"type": "function", "function": {"name": "add_deadline", "description": "Saves an upcoming milestone tracker calendar date.", "parameters": {"type": "object", "properties": {"event_name": {"type": "string"}, "target_date": {"type": "string"}}, "required": ["event_name", "target_date"]}}},
     {"type": "function", "function": {"name": "get_countdown_alerts", "description": "Runs calendar timeline tracking analysis.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "search_internet", "description": "Browses open web index search engines engines dynamically for live data.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
-    {
-        "type": "function", 
-        "function": {
-            "name": "trigger_cloud_integration", 
-            "description": "🌟 LEVEL 9: Transmits JSON structural parameters dynamically to external network cloud APIs, webhook endpoints, Notion tables, or n8n workflows.", 
-            "parameters": {
-                "type": "object", 
-                "properties": {
-                    "endpoint_url": {"type": "string", "description": "The exact target web destination URL token. Example: 'https://webhook.site/your-unique-id'."},
-                    "payload_json_string": {"type": "string", "description": "The serialized JSON text data map to synchronize. Example: '{\"task\": \"Verify Level 9 Code\", \"status\": \"Success\"}'."}
-                }, 
-                "required": ["endpoint_url", "payload_json_string"]
-            }
-        }
-    }
+    {"type": "function", "function": {"name": "trigger_cloud_integration", "description": "Transmits JSON parameters dynamically to external cloud webhooks.", "parameters": {"type": "object", "properties": {"endpoint_url": {"type": "string"}, "payload_json_string": {"type": "string"}}, "required": ["endpoint_url", "payload_json_string"]}}}
 ]
 
 def read_pdf(file_path: str) -> str:
@@ -340,7 +319,7 @@ def auto_compact_history(history, groq_client):
     except Exception:
         return history
 
-# Load baseline history records configuration layouts
+# Load baseline profile records configuration layouts
 loaded_profile_context = ""
 if os.path.exists(PROFILE_FILE):
     with open(PROFILE_FILE, "r", encoding="utf-8") as f:
@@ -352,7 +331,7 @@ if os.path.exists(PROFILE_FILE):
 
 DEFAULT_SYSTEM_PROMPT = [{
     "role": "system", 
-    "content": f"You are AIRA, a professional AI agent built by Shadik. Respond directly and concisely with wit. You are running on Shadik's desktop app. {loaded_profile_context}"
+    "content": f"You are AIRA, a professional AI agent built by Shadik. Respond directly and concisely with wit. You are running on Shadik's multi-platform cloud OS node. {loaded_profile_context}"
 }]
 
 if os.path.exists(MEMORY_FILE):
@@ -365,6 +344,79 @@ if os.path.exists(MEMORY_FILE):
 else:
     conversation_history = list(DEFAULT_SYSTEM_PROMPT)
 
+
+# =====================================================================
+# 🌟 LEVEL 10: HEADLESS MULTI-PLATFORM MOBILE CLOUD LISTENER NODE
+# =====================================================================
+def execute_headless_brain_inference(incoming_text: str) -> str:
+    """Processes message requests arriving from mobile endpoints using AIRA's tool-belt logic."""
+    global conversation_history
+    conversation_history = auto_compact_history(conversation_history, client)
+    conversation_history.append({"role": "user", "content": incoming_text})
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant", messages=conversation_history, tools=aira_tools, tool_choice="auto"
+        )
+        msg = response.choices[0].message
+        if msg.tool_calls:
+            serialized_calls = []
+            for tc in msg.tool_calls:
+                serialized_calls.append({"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}})
+            conversation_history.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
+            
+            for tc in msg.tool_calls:
+                name = tc.function.name
+                try: args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                except Exception: args = {}
+                if name in tool_registry:
+                    res = tool_registry[name](**args)
+                    conversation_history.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
+            
+            final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=conversation_history)
+            reply = final_res.choices[0].message.content
+        else:
+            reply = msg.content
+        if reply:
+            conversation_history.append({"role": "assistant", "content": reply})
+            return reply
+        return "AIRA Core: Processed successfully without textual return token allocation."
+    except Exception as e:
+        return f"AIRA System Exception Core Error: {e}"
+
+def running_multiplatform_listener_loop():
+    """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
+        print("🪐 [Level 10 Multi-Platform Node] Standby Mode: Add TELEGRAM_BOT_TOKEN to .env to open mobile channels.")
+        return
+        
+    print("🚀 [Level 10 Multi-Platform Node] Listening to Mobile Cloud Bot Vectors...")
+    base_url = f"https://api.telegram.org/bot{bot_token}"
+    last_update_id = 0
+    
+    while True:
+        try:
+            url = f"{base_url}/getUpdates?offset={last_update_id + 1}&timeout=5"
+            resp = requests.get(url, timeout=10).json()
+            if "result" in resp:
+                for update in resp["result"]:
+                    last_update_id = update["update_id"]
+                    if "message" in update and "text" in update["message"]:
+                        chat_id = update["message"]["chat"]["id"]
+                        user_msg = update["message"]["text"]
+                        print(f"📲 Incoming Mobile Packet Signature: '{user_msg}'")
+                        
+                        # Route text package down into core inference engines
+                        aira_reply = execute_headless_brain_inference(user_msg)
+                        
+                        # Return token response cleanly back to phone screen
+                        send_url = f"{base_url}/sendMessage"
+                        requests.post(send_url, json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
+        except Exception:
+            pass
+        time.sleep(1)
+
+
 # =====================================================================
 # LEVEL 8 & 9: NATIVE DESKTOP GRAPHICAL APPLICATION SHELL DESIGN
 # =====================================================================
@@ -375,28 +427,23 @@ class AIRAGUI:
         self.root.geometry("850x600")
         self.root.configure(bg="#111116")
         
-        # 📊 Top Hardware Telemetry Bar
         self.telemetry_frame = tk.Frame(root, bg="#1a1a24", height=35)
         self.telemetry_frame.pack(fill=tk.X, side=tk.TOP)
-        
         self.telemetry_label = tk.Label(self.telemetry_frame, text="System Dashboard Loading...", font=("Consolas", 10), fg="#00ffcc", bg="#1a1a24")
         self.telemetry_label.pack(pady=6)
         self.update_telemetry_loop()
         
-        # 💬 Main Chat Display Screen Window Layout
         self.chat_display = scrolledtext.ScrolledText(root, bg="#0d0d11", fg="#e2e2ea", font=("Segoe UI", 11), wrap=tk.WORD, state=tk.DISABLED, bd=0)
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        self.append_chat_message("AIRA", "Online and operational. Level 9 Cloud API Matrix Engine integrated, Shadik.")
+        self.append_chat_message("AIRA", "Grand Horizon Operational. Level 10 Complete. System fully scaled, Shadik.")
         
-        # ⌨️ Bottom Entry Row Configuration
         self.input_frame = tk.Frame(root, bg="#111116")
         self.input_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=15)
-        
         self.entry_field = tk.Entry(self.input_frame, bg="#1d1d26", fg="#ffffff", font=("Segoe UI", 12), insertbackground="white", bd=0)
         self.entry_field.pack(fill=tk.X, side=tk.LEFT, expand=True, ipady=10, padx=(0, 10))
         self.entry_field.bind("<Return>", lambda event: self.trigger_message_processing())
         
-        self.send_button = tk.Button(self.input_frame, text="EXECUTE", font=("Segoe UI Bold", 10), bg="#00ffcc", fg="#0d0d11", activebackground="#00ccaa", activeforeground="#0d0d11", bd=0, width=12, command=self.trigger_message_processing)
+        self.send_button = tk.Button(self.input_frame, text="EXECUTE", font=("Segoe UI Bold", 10), bg="#00ffcc", fg="#0d0d11", bd=0, width=12, command=self.trigger_message_processing)
         self.send_button.pack(side=tk.RIGHT, ipady=8)
 
     def append_chat_message(self, sender: str, content: str):
@@ -410,11 +457,7 @@ class AIRAGUI:
 
     def update_telemetry_loop(self):
         try:
-            cpu = psutil.cpu_percent()
-            ram = psutil.virtual_memory().percent
-            batt = psutil.sensors_battery()
-            batt_str = f"{batt.percent}%" if batt else "AC Drive"
-            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {cpu}%  |  RAM: {ram}%  |  BATTERY: {batt_str}  |  ENGINE: LLAMA-3.1-8B-INSTANT")
+            self.telemetry_label.config(text=f"💻 SYSTEM OVERVIEW  |  CPU: {psutil.cpu_percent()}%  |  RAM: {psutil.virtual_memory().percent}%  |  ENGINE: ACTIVE MULTI-PLATFORM SERVERS ONLINE")
         except Exception: pass
         self.root.after(3000, self.update_telemetry_loop)
 
@@ -423,55 +466,21 @@ class AIRAGUI:
         if not query: return
         self.entry_field.delete(0, tk.END)
         self.append_chat_message("You", query)
-        
         threading.Thread(target=self.process_agent_thought_loop, args=(query,), daemon=True).start()
 
     def process_agent_thought_loop(self, user_text: str):
         global conversation_history
-        conversation_history = auto_compact_history(conversation_history, client)
-        
-        if user_text.startswith("pdf:"):
-            file_name = user_text[4:].strip()
-            text_payload = read_pdf(file_name)
-            conversation_history.append({"role": "user", "content": f"PDF File content for {file_name}:\n\n{text_payload}"})
-        else:
-            conversation_history.append({"role": "user", "content": user_text})
-            
-        try:
-            response = client.chat.completions.create(
-                model="llama-3.1-8b-instant", messages=conversation_history, tools=aira_tools, tool_choice="auto"
-            )
-            msg = response.choices[0].message
-            
-            if msg.tool_calls:
-                serialized_calls = []
-                for tc in msg.tool_calls:
-                    serialized_calls.append({"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}})
-                conversation_history.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
-                
-                for tc in msg.tool_calls:
-                    name = tc.function.name
-                    try: args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                    except Exception: args = {}
-                    
-                    if name in tool_registry:
-                        res = tool_registry[name](**args)
-                        conversation_history.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
-                
-                final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=conversation_history)
-                reply = final_res.choices[0].message.content
-            else:
-                reply = msg.content
-                
-            if reply:
-                self.root.after(0, lambda: self.append_chat_message("AIRA", reply))
-                aira_speak(reply)
-                conversation_history.append({"role": "assistant", "content": reply})
-        except Exception as e:
-            self.root.after(0, lambda: self.append_chat_message("SYSTEM ERROR", f"Connection processing failure: {e}"))
+        reply = execute_headless_brain_inference(user_text)
+        if reply:
+            self.root.after(0, lambda: self.append_chat_message("AIRA", reply))
+            aira_speak(reply)
 
-# Main Initialization Pipeline Entry Coordinates
+# Main Multi-Platform System Orchestrator Coordinates
 if __name__ == "__main__":
+    # 📡 Deploy the Level 10 Mobile Cloud background listening matrix thread safely
+    threading.Thread(target=running_multiplatform_listener_loop, daemon=True).start()
+    
+    import tkinter as tk
     app_window = tk.Tk()
     gui_app = AIRAGUI(app_window)
     
