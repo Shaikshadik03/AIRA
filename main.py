@@ -25,7 +25,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.5.0")
+app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.6.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -95,6 +95,17 @@ def init_relational_database():
             name TEXT,
             cost REAL,
             renewal_date TEXT
+        )
+    """)
+
+    # SaaS Multi-Tenant Knowledge Note Vault Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            title TEXT,
+            content TEXT,
+            timestamp TEXT
         )
     """)
     
@@ -260,7 +271,6 @@ def log_expense(amount: float, category: str, description: str, user_id: str, **
         return f"System Error: Isolated database transaction update routine aborted: {e}"
 
 def set_monthly_budget(category: str, amount: float, user_id: str, **kwargs) -> str:
-    """Saves a maximum monetary spend threshold row for a specific tracking category category."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -275,7 +285,6 @@ def set_monthly_budget(category: str, amount: float, user_id: str, **kwargs) -> 
         return f"System Error: Failed to save relational budget row: {e}"
 
 def add_subscription(name: str, cost: float, renewal_date: str, user_id: str, **kwargs) -> str:
-    """Registers an automated monthly billing commitment string with timestamp analytics."""
     try:
         datetime.strptime(renewal_date.strip(), "%Y-%m-%d")
         conn = sqlite3.connect(DB_FILE)
@@ -293,23 +302,15 @@ def add_subscription(name: str, cost: float, renewal_date: str, user_id: str, **
         return f"System Error: Failed to record billing matrix row: {e}"
 
 def get_financial_report(user_id: str, **kwargs) -> str:
-    """Compiles a data tracking overview parsing asset expenses cross-referenced against category budgets and subscription cards."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        
-        # Pull expenses
         cursor.execute("SELECT amount, category FROM expenses WHERE user_id = ?", (user_id,))
         expense_rows = cursor.fetchall()
-        
-        # Pull budgets
         cursor.execute("SELECT category, amount FROM budgets WHERE user_id = ?", (user_id,))
         budget_map = {row[0]: row[1] for row in cursor.fetchall()}
-        
-        # Pull subscriptions
         cursor.execute("SELECT name, cost, renewal_date FROM subscriptions WHERE user_id = ?", (user_id,))
         sub_rows = cursor.fetchall()
-        
         conn.close()
         
         total_spent = sum([r[0] for r in expense_rows])
@@ -318,11 +319,8 @@ def get_financial_report(user_id: str, **kwargs) -> str:
             cat_spent[category] = cat_spent.get(category, 0.0) + amount
             
         report_text = f"📊 Cloud Row-Isolated Financial Balance Sheet [{user_id}]:\n- Overall Aggregate Spending: {total_spent}\n\n"
-        
         report_text += "Itemized Budgets Enforcement Matrix:\n"
         all_categories = set(list(cat_spent.keys()) + list(budget_map.keys()))
-        if not all_categories:
-            report_text += "  (Zero recorded categorical ledger data structures found)\n"
         for cat in all_categories:
             spent = cat_spent.get(cat, 0.0)
             limit = budget_map.get(cat, None)
@@ -333,14 +331,49 @@ def get_financial_report(user_id: str, **kwargs) -> str:
                 report_text += f"  * {cat.title()}: Spent {spent} / No Cap Limit Configured\n"
                 
         report_text += "\nActive Automated Subscription Streams:\n"
-        if not sub_rows:
-            report_text += "  (Zero recurring tracking subscriptions mapped to this token profile)\n"
         for name, cost, r_date in sub_rows:
             report_text += f"  * {name}: {cost} recurring (Next billing cycle: {r_date})\n"
-            
         return report_text
     except Exception as e:
-        return f"System Error: Isolated metrics pipeline summation failure: {e}"
+        return f"System Error: Isolated metrics pipeline failure: {e}"
+
+def create_workspace_note(title: str, content: str, user_id: str, **kwargs) -> str:
+    """Creates a structured, context-isolated text record row directly inside the note vault database table."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO notes (user_id, title, content, timestamp) VALUES (?, ?, ?, ?)",
+            (user_id, title.strip(), content.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p"))
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Knowledge block locked inside your cloud vault. Saved note '{title}' securely."
+    except Exception as e:
+        return f"System Error: Note transaction append failed: {e}"
+
+def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
+    """Scans note text data metrics row-by-row to extract matching key string terms."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        search_term = f"%{query.lower().strip()}%"
+        cursor.execute(
+            "SELECT title, content, timestamp FROM notes WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?)",
+            (user_id, search_term, search_term)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return f"System message: Search complete. Found 0 matching records for term '{query}' in your workspace vault."
+            
+        results = [f"🔍 Matching Knowledge Notes Discovered [{user_id}]:"]
+        for title, content, t_stamp in rows:
+            results.append(f"📌 Title: {title} ({t_stamp})\nContent: {content}\n---")
+        return "\n".join(results)
+    except Exception as e:
+        return f"System Error: Vault indexing search operation aborted: {e}"
 
 def get_hardware_status(**kwargs) -> str:
     try:
@@ -495,12 +528,13 @@ def trigger_cloud_integration(endpoint_url: str, payload_json_string: str, **kwa
         return f"System Error: Cloud integration failed: {e}"
 
 
-# Scalable Multi-Tenant Function Core Registry Toolbelt Blueprint
+# Scalable Multi-Tenant Safe Function Core Registries Pointer Dictionary
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
     "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file, "read_pdf": read_pdf,
     "log_expense": log_expense, "set_monthly_budget": set_monthly_budget, "add_subscription": add_subscription, "get_financial_report": get_financial_report,
+    "create_workspace_note": create_workspace_note, "search_workspace_notes": search_workspace_notes,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
     "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
@@ -523,6 +557,8 @@ aira_tools = [
     {"type": "function", "function": {"name": "set_monthly_budget", "description": "Sets a maximum monthly spending threshold caps constraint limit for an itemized spending category.", "parameters": {"type": "object", "properties": {"category": {"type": "string"}, "amount": {"type": "number"}}, "required": ["category", "amount"]}}},
     {"type": "function", "function": {"name": "add_subscription", "description": "Logs an active recurring card membership subscription tracking automated monthly bills.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "cost": {"type": "number"}, "renewal_date": {"type": "string"}}, "required": ["name", "cost", "renewal_date"]}}},
     {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a data summary tracking spending aggregates, category budget compliance ratios, and subscription timelines.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "create_workspace_note", "description": "Saves a text knowledge block record directly into the secure cloud database note vault with a search title.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"}}, "required": ["title", "content"]}}},
+    {"type": "function", "function": {"name": "search_workspace_notes", "description": "Scans your row-isolated relational database notes vault for matching title or content search keywords.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
@@ -555,11 +591,11 @@ def fetch_isolated_user_history(user_id: str):
     system_prompt_string = (
         "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
         "Respond directly and concisely with adaptive candor and a touch of wit. "
-        f"You are running inside a multi-tenant subscription framework. Active session user token: {user_id}. {profile_ctx}\n\n"
-        "SAAS OPERATIONS MANDATE:\n"
-        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts.\n"
-        "2. Natively invoke structural budgeting tools autonomously whenever requested by user intents.\n"
-        "3. Cross-reference expense reports with 'set_monthly_budget' and 'add_subscription' metadata rows automatically.\n"
+        f"You are running inside a production cloud web architecture. Active session user token: {user_id}. {profile_ctx}\n\n"
+        "ROW-ISOLATION SECURITY OPERATIONAL RULES:\n"
+        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
+        "2. Natively invoke structural action tools autonomously whenever requested by user intents.\n"
+        "3. You operate within a strict multi-tenant framework. Do not pollute overlapping cross-tenant session arrays.\n"
         "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
     
@@ -640,10 +676,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 21 Toolkit Node] Telegram Listener Standby Mode: Token missing.")
+        print("🪐 [Level 22 Note Vault] Telegram Listener Standby Mode: Token missing.")
         return
         
-    print("🚀 [Level 21 Toolkit Node] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 22 Note Vault] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -738,5 +774,5 @@ if __name__ == "__main__":
     # Run the production API server engine node
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Production-Optimized Engine Node Server on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Production-Optimized Note Vault Server on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
