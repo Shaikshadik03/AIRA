@@ -2,6 +2,7 @@ import os
 import json
 import threading
 import webbrowser
+import requests            # 🌟 LEVEL 9: Cloud API HTTP Request Engine
 import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
@@ -245,6 +246,26 @@ def search_internet(query: str) -> str:
     except Exception as e:
         return f"System Error: Failed to complete internet search: {e}"
 
+def trigger_cloud_integration(endpoint_url: str, payload_json_string: str) -> str:
+    """🌟 LEVEL 9: Dispatches secure HTTP POST data payloads directly to external APIs (Notion, n8n, Cloud services)."""
+    try:
+        print(f"📡 [Cloud API Matrix Triggered] Dispatching packet array payload to: {endpoint_url}")
+        data_packet = json.loads(payload_json_string)
+        
+        # Add a custom developer identification headers signature tag
+        headers = {"Content-Type": "application/json", "User-Agent": "AIRA-OS-Agent-Core"}
+        
+        # Fire the network packet through the web matrix securely with a timeout block
+        response = requests.post(endpoint_url, json=data_packet, headers=headers, timeout=8)
+        
+        if response.status_code in [200, 201]:
+            return f"System message: Cloud Integration successful! Response code: {response.status_code}. Data synced cleanly."
+        else:
+            return f"System message: Cloud connection reached but returned status code: {response.status_code}. Response message: {response.text}"
+    except Exception as e:
+        return f"System Error: Cloud connection matrix pipeline failed. Reason: {e}"
+
+
 # Scalable Tool Registries Mapping Directories
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
@@ -252,7 +273,8 @@ tool_registry = {
     "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "save_profile_fact": save_profile_fact,
     "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
-    "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet
+    "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
+    "trigger_cloud_integration": trigger_cloud_integration  # Level 9 Registered!
 }
 
 # Dynamic Native AI Agent Tool Blueprints Schema Layout Array
@@ -272,7 +294,22 @@ aira_tools = [
     {"type": "function", "function": {"name": "read_profile_facts", "description": "Reads long-term user context profile database facts.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "add_deadline", "description": "Saves an upcoming milestone tracker calendar date.", "parameters": {"type": "object", "properties": {"event_name": {"type": "string"}, "target_date": {"type": "string"}}, "required": ["event_name", "target_date"]}}},
     {"type": "function", "function": {"name": "get_countdown_alerts", "description": "Runs calendar timeline tracking analysis.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "search_internet", "description": "Browses open web index search engines engines dynamically for live data.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}}
+    {"type": "function", "function": {"name": "search_internet", "description": "Browses open web index search engines engines dynamically for live data.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {
+        "type": "function", 
+        "function": {
+            "name": "trigger_cloud_integration", 
+            "description": "🌟 LEVEL 9: Transmits JSON structural parameters dynamically to external network cloud APIs, webhook endpoints, Notion tables, or n8n workflows.", 
+            "parameters": {
+                "type": "object", 
+                "properties": {
+                    "endpoint_url": {"type": "string", "description": "The exact target web destination URL token. Example: 'https://webhook.site/your-unique-id'."},
+                    "payload_json_string": {"type": "string", "description": "The serialized JSON text data map to synchronize. Example: '{\"task\": \"Verify Level 9 Code\", \"status\": \"Success\"}'."}
+                }, 
+                "required": ["endpoint_url", "payload_json_string"]
+            }
+        }
+    }
 ]
 
 def read_pdf(file_path: str) -> str:
@@ -329,7 +366,7 @@ else:
     conversation_history = list(DEFAULT_SYSTEM_PROMPT)
 
 # =====================================================================
-# 🎨 LEVEL 8: NATIVE DESKTOP GRAPHICAL APPLICATION SHELL DESIGN
+# LEVEL 8 & 9: NATIVE DESKTOP GRAPHICAL APPLICATION SHELL DESIGN
 # =====================================================================
 class AIRAGUI:
     def __init__(self, root):
@@ -346,10 +383,10 @@ class AIRAGUI:
         self.telemetry_label.pack(pady=6)
         self.update_telemetry_loop()
         
-        # 💬 Main Chat Display Screen Window Layout Area Container Component Block
+        # 💬 Main Chat Display Screen Window Layout
         self.chat_display = scrolledtext.ScrolledText(root, bg="#0d0d11", fg="#e2e2ea", font=("Segoe UI", 11), wrap=tk.WORD, state=tk.DISABLED, bd=0)
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        self.append_chat_message("AIRA", "Online and operational. Systems initialized, Shadik.")
+        self.append_chat_message("AIRA", "Online and operational. Level 9 Cloud API Matrix Engine integrated, Shadik.")
         
         # ⌨️ Bottom Entry Row Configuration
         self.input_frame = tk.Frame(root, bg="#111116")
@@ -387,7 +424,6 @@ class AIRAGUI:
         self.entry_field.delete(0, tk.END)
         self.append_chat_message("You", query)
         
-        # Deploy pipeline execution tracking matrix threads to maximize asynchronous speed curves
         threading.Thread(target=self.process_agent_thought_loop, args=(query,), daemon=True).start()
 
     def process_agent_thought_loop(self, user_text: str):
@@ -429,13 +465,12 @@ class AIRAGUI:
                 
             if reply:
                 self.root.after(0, lambda: self.append_chat_message("AIRA", reply))
-                # Trigger vocalizations inside the decoupled network thread pipeline
                 aira_speak(reply)
                 conversation_history.append({"role": "assistant", "content": reply})
         except Exception as e:
             self.root.after(0, lambda: self.append_chat_message("SYSTEM ERROR", f"Connection processing failure: {e}"))
 
-# Main Initialization Pipeline Thread Entry Coordinates
+# Main Initialization Pipeline Entry Coordinates
 if __name__ == "__main__":
     app_window = tk.Tk()
     gui_app = AIRAGUI(app_window)
