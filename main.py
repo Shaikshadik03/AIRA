@@ -26,11 +26,31 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.9.0")
+app = FastAPI(title="AIRA OS Protected Production Server", version="1.10.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
 BACKUP_DIR = "backups"
+
+# =====================================================================
+# 🛡️ IN-MEMORY SLIDING RATE LIMITING TRANSACTION STORE
+# =====================================================================
+RATE_LIMIT_STORE = {}  # Maps user_id strings -> list of absolute timestamps
+
+def check_rate_limit_throttle(user_id: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
+    """Evaluates request frequencies within a shifting timeframe window profile."""
+    now = time.time()
+    if user_id not in RATE_LIMIT_STORE:
+        RATE_LIMIT_STORE[user_id] = []
+        
+    # Filter out historical timestamp records outside our active security sliding window
+    RATE_LIMIT_STORE[user_id] = [t for t in RATE_LIMIT_STORE[user_id] if now - t < window_seconds]
+    
+    if len(RATE_LIMIT_STORE[user_id]) >= max_requests:
+        return False  # Target user is officially restricted and throttled
+        
+    RATE_LIMIT_STORE[user_id].append(now)
+    return True  # Request meets compliance parameters
 
 # =====================================================================
 # 🔐 CRYPTOGRAPHIC PASSWORD HASHING UTILITY
@@ -156,8 +176,6 @@ def init_relational_database():
     """)
     conn.commit()
     conn.close()
-
-    # Build backup folder directory securely if missing on runtime launch
     os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # Fire up relational schemas on core runtime initialization
@@ -477,22 +495,18 @@ def get_audit_trail(user_id: str, **kwargs) -> str:
         return f"System Error: Failed to retrieve isolated telemetry structures: {e}"
 
 def trigger_database_backup(**kwargs) -> str:
-    """Creates a timestamped snapshot partition duplicate copy of the relational core file."""
     try:
         if not os.path.exists(DB_FILE):
             return "System Error: Cannot back up database because the core file hasn't been initialized yet."
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f"backup_aira_{timestamp}.db"
         target_path = os.path.join(BACKUP_DIR, backup_filename)
-        
-        # Execute hot copy transaction snapshot duplication natively
         shutil.copy2(DB_FILE, target_path)
         return f"System message: Relational snapshot generated flawlessly! Saved copy as '{target_path}'."
     except Exception as e:
         return f"System Error: Cold storage backup duplicate loop aborted: {e}"
 
 def list_system_backups(**kwargs) -> str:
-    """Scans the sandboxed cloud recovery folder to index all cold-storage recovery points."""
     try:
         files = os.listdir(BACKUP_DIR)
         backup_files = [f for f in files if f.startswith("backup_aira_") and f.endswith(".db")]
@@ -767,6 +781,10 @@ def log_database_message(user_id: str, role: str, content: str, tool_calls=None)
 
 def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
     """Processes message requests across strictly isolated user row context boundaries."""
+    # SECURITY GATEWAY: Intercept and reject requests exceeding 5 calls per minute!
+    if not check_rate_limit_throttle(session_user_id, max_requests=5, window_seconds=60):
+        return "⚠️ AIRA Core Firewall Notice: Rate Limit Triggered! Access restricted to 5 tasks per minute to secure system threads."
+
     history_array = fetch_isolated_user_history(session_user_id)
     history_array.append({"role": "user", "content": incoming_text})
     log_database_message(session_user_id, "user", incoming_text)
@@ -815,10 +833,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 25 Backup Engine] Telegram Listener Standby Mode: Token missing.")
+        print("🪐 [Level 26 Firewall Engine] Telegram Listener Standby Mode: Token missing.")
         return
         
-    print("🚀 [Level 25 Backup Engine] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 26 Firewall Engine] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -834,12 +852,11 @@ def running_multiplatform_listener_loop():
                         user_msg = update["message"]["text"]
                         
                         active_scoped_user = f"telegram_{chat_id}"
-                        print(f"📲 Production Data Node Caught: '{user_msg}' from account '{active_scoped_user}'")
+                        print(f"📲 Production Security Data Node Caught: '{user_msg}' from account '{active_scoped_user}'")
                         
                         aira_reply = execute_brain_inference(user_msg, session_user_id=active_scoped_user)
                         
-                        send_url = f"/sendMessage"
-                        # Standard web communication payload mapping
+                        send_url = "/sendMessage"
                         requests.post(f"{base_url}{send_url}", json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
         except Exception:
             pass
@@ -853,9 +870,10 @@ def running_multiplatform_listener_loop():
 async def serve_root_api_healthcheck():
     return {
         "status": "online",
-        "engine": "AIRA OS SaaS Production Stack Core",
+        "engine": "AIRA OS SaaS Protected Security Core",
         "timestamp": datetime.now().isoformat(),
         "sandbox_root": WORKSPACE_ROOT,
+        "firewall_rules": "rate_limiting_active",
         "telemetry": {
             "cpu_utilization_percent": psutil.cpu_percent(),
             "memory_utilization_percent": psutil.virtual_memory().percent
@@ -914,5 +932,5 @@ if __name__ == "__main__":
     # Run the production API server engine node
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Production-Optimized Backup Engine Server on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Production-Optimized Protected Firewall Server on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
