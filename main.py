@@ -17,10 +17,10 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # Persistent Memory Storage Pointers
 MEMORY_FILE = "memory.json"
 PROFILE_FILE = "profile.json"
-DEADLINES_FILE = "deadlines.json"  # Level 5 Core Tracker Location
+DEADLINES_FILE = "deadlines.json"
 
 # =====================================================================
-# 🚀 AIRA V5 SYSTEM — AGENT ACTION TOOL CORES
+# 🚀 AIRA V6 SYSTEM — AGENT ACTION TOOL CORES
 # =====================================================================
 
 # 1. Core Python System-Level Action Functions
@@ -220,11 +220,9 @@ def read_profile_facts() -> str:
         return f"System Error: Failed to parse permanent long-term memory registers. Reason: {e}"
 
 def add_deadline(event_name: str, target_date: str) -> str:
-    """🌟 LEVEL 5: Saves an upcoming exam, milestone, or hackathon target date (Format: YYYY-MM-DD)."""
+    """Saves an upcoming exam, milestone, or hackathon target date (Format: YYYY-MM-DD)."""
     try:
-        # Validate calendar string format directly
         datetime.strptime(target_date.strip(), "%Y-%m-%d")
-        
         deadlines = {}
         if os.path.exists(DEADLINES_FILE):
             with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
@@ -234,7 +232,6 @@ def add_deadline(event_name: str, target_date: str) -> str:
                     deadlines = {}
                     
         deadlines[event_name.strip()] = target_date.strip()
-        
         with open(DEADLINES_FILE, "w", encoding="utf-8") as f:
             json.dump(deadlines, f, indent=4)
         return f"System message: Deadline registered successfully for '{event_name}' on {target_date}."
@@ -244,34 +241,44 @@ def add_deadline(event_name: str, target_date: str) -> str:
         return f"System Error: Failed to update scheduler register registry. Reason: {e}"
 
 def get_countdown_alerts() -> str:
-    """🌟 LEVEL 5: Calculates real-world time-remaining differences against the machine clock."""
+    """Calculates real-world time-remaining differences against the machine clock."""
     try:
         if not os.path.exists(DEADLINES_FILE):
             return "System message: No target deadlines are currently registered inside the planner profile."
-            
         with open(DEADLINES_FILE, "r", encoding="utf-8") as f:
             deadlines = json.load(f)
-            
         if not deadlines:
             return "System message: No target deadlines are currently tracking inside the file array."
             
         today = datetime.now().date()
         countdown_report = ["Live Scheduler Tracking Countdown Array:"]
-        
         for event, date_str in deadlines.items():
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             days_left = (target_date - today).days
-            
             if days_left > 0:
                 countdown_report.append(f"- {event}: {days_left} days remaining (Target: {date_str})")
             elif days_left == 0:
                 countdown_report.append(f"- 🔥 {event}: IS HAPPENING TODAY!")
             else:
                 countdown_report.append(f"- {event}: Passed {abs(days_left)} days ago ({date_str})")
-                
         return "\n".join(countdown_report)
     except Exception as e:
         return f"System Error: Failed to process timeline array differences. Reason: {e}"
+
+def search_internet(query: str) -> str:
+    """🌟 LEVEL 6: Connects AIRA autonomously to the live web to fetch summaries on news, hackathons, and internships."""
+    try:
+        print(f"🔍 [Autonomous Tool Execution] Scanning web index pages for: '{query}'...")
+        with DDGS() as ddgs:
+            results = [r for r in ddgs.text(query, max_results=4)]
+            if not results:
+                return "System message: The web search query completed but returned 0 active text results."
+            search_text = "Live Search Engine Indexes Retrieved:\n"
+            for r in results:
+                search_text += f"Title: {r['title']}\nSnippet: {r['body']}\n\n"
+            return search_text
+    except Exception as e:
+        return f"System Error: Failed to complete live internet search task. Reason: {e}"
 
 
 # 2. Scalable Tool Registry Directory Mapping
@@ -289,11 +296,12 @@ tool_registry = {
     "launch_app": launch_app,
     "save_profile_fact": save_profile_fact,
     "read_profile_facts": read_profile_facts,
-    "add_deadline": add_deadline,          # Level 5 Activated!
-    "get_countdown_alerts": get_countdown_alerts  # Level 5 Activated!
+    "add_deadline": add_deadline,
+    "get_countdown_alerts": get_countdown_alerts,
+    "search_internet": search_internet  # Level 6 Registered!
 }
 
-# 3. Dynamic Native AI Agent Tool Blueprints (JSON Schema Toolbox Array)
+# 3. Dynamic Native AI Agent Tool Blueprints
 aira_tools = [
     {
         "type": "function",
@@ -449,12 +457,12 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "add_deadline",
-            "description": "Saves an upcoming exam, countdown tracker, assignment milestone, or hackathon target date. Target dates MUST be explicitly passed in YYYY-MM-DD string structure format layout.",
+            "description": "Saves an upcoming exam, countdown tracker, assignment milestone, or hackathon target date.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "event_name": {"type": "string", "description": "The clear title label of the upcoming deadline milestone event. Example: 'Final Python Exam'."},
-                    "target_date": {"type": "string", "description": "The exact calendar date to track passed strictly as YYYY-MM-DD. Example: '2026-11-20'."}
+                    "event_name": {"type": "string"},
+                    "target_date": {"type": "string"}
                 },
                 "required": ["event_name", "target_date"]
             }
@@ -464,14 +472,28 @@ aira_tools = [
         "type": "function",
         "function": {
             "name": "get_countdown_alerts",
-            "description": "Runs a real-time calendar date tracking analysis difference function against stowed planner arrays to determine exact days remaining until registered project milestones arrive.",
+            "description": "Runs a real-time calendar date tracking analysis difference function against stowed planner arrays.",
             "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_internet",
+            "description": "🌟 LEVEL 6: Browses live web engines dynamically. Use this whenever the user asks for the latest news, tech updates, open internship roles, or coding contests/hackathons happening right now.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The target keyword string text to find online. Example: 'latest AI news 2026' or 'student coding hackathons 2026'."}
+                },
+                "required": ["query"]
+            }
         }
     }
 ]
 
 # =====================================================================
-# 🌐 AIRA V3 SYSTEM — CONTEXT EXTRACTION HELPER FUNCTIONS
+# 🌐 AIRA SYSTEM — CONTEXT EXTRACTION HELPER FUNCTIONS
 # =====================================================================
 
 def read_pdf(file_path: str) -> str:
@@ -485,29 +507,14 @@ def read_pdf(file_path: str) -> str:
     except Exception as e:
         return f"System Error: Failed to parse PDF document. Reason: {e}"
 
-def search_web(query: str) -> str:
-    """Executes a text query search via DuckDuckGo and gathers summaries."""
-    try:
-        with DDGS() as ddgs:
-            results = [r for r in ddgs.text(query, max_results=3)]
-            search_text = ""
-            for r in results:
-                search_text += f"Title: {r['title']}\nSnippet: {r['body']}\n\n"
-            return search_text
-    except Exception as e:
-        return f"System Error: Failed to fetch search results. Reason: {e}"
-
 # =====================================================================
-# 💾 AIRA V4 SYSTEM — COMPACTION OPTIMIZATION LOGIC
+# 💾 AIRA SYSTEM — COMPACTION OPTIMIZATION LOGIC
 # =====================================================================
 def auto_compact_history(history, groq_client):
     """LEVEL 4 ENGINE: Compresses middle logs to guarantee elite execution speeds."""
     if len(history) <= 20:
         return history
-        
     print("\n⚡ [Memory Optimizer Triggered] Short-term history is getting too long!")
-    print("⏳ Running background distillation compression on old logs...")
-    
     try:
         system_prompt = history[0]
         slice_to_compress = history[1:-4]  
@@ -527,15 +534,12 @@ def auto_compact_history(history, groq_client):
             "single, tight narrative paragraph focusing exclusively on key topics decided or files changed.\n\n"
             f"Timeline logs to compress:\n{raw_text_to_condense}"
         )
-        
         compaction_response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",  # Level 4 Pro-Move: Light model for compaction speed
             messages=[{"role": "system", "content": compaction_prompt}]
         )
-        
         compressed_summary = compaction_response.choices[0].message.content
         print("✅ Distillation complete! Saved workspace chat capacity.\n")
-        
         optimized_history = [
             system_prompt,
             {"role": "system", "content": f"Summary profile of previous interactions: {compressed_summary}"}
@@ -547,7 +551,7 @@ def auto_compact_history(history, groq_client):
         return history
 
 # =====================================================================
-# 💾 AIRA V2 SYSTEM — PERSISTENT STORAGE MEMORY LOADER & FACT INJECTION
+# 💾 AIRA SYSTEM — PERSISTENT STORAGE MEMORY LOADER & FACT INJECTION
 # =====================================================================
 loaded_profile_context = ""
 if os.path.exists(PROFILE_FILE):
@@ -589,15 +593,14 @@ if loaded_profile_context:
     print("🧠 Long-term user profile background facts injected into the system prompt core!")
 
 print("\n⚡ AIRA is online and running! Type 'exit' to cleanly close down.")
-print("🌐 Format web search inquiries as: 'search: your question'")
+print("🌐 Ask questions naturally—AIRA will search the internet autonomously when required.")
 print("📄 Format PDF document readings as: 'pdf: filename.pdf'\n")
 
 # =====================================================================
-# 💬 AIRA V1 SYSTEM — INTERACTIVE MAIN LOOP
+# 💬 AIRA SYSTEM — INTERACTIVE MAIN LOOP
 # =====================================================================
 while True:
     conversation_history = auto_compact_history(conversation_history, client)
-
     user_input = input("You: ").strip()
     
     if user_input.lower() == "exit":
@@ -609,26 +612,19 @@ while True:
     if not user_input:
         continue
 
-    if user_input.startswith("search:"):
-        query = user_input[7:].strip()
-        print(f"🔍 Contacting search servers for: '{query}'...")
-        context_data = search_web(query)
-        prompt_with_context = f"You are AIRA.\nBelow are live web search results.\n\n{context_data}\n\nUsing this information, answer the question: {query}"
-        conversation_history.append({"role": "user", "content": prompt_with_context})
-
-    elif user_input.startswith("pdf:"):
+    if user_input.startswith("pdf:"):
         file_name = user_input[4:].strip()
         print(f"📄 Scraping text content out of target document: '{file_name}'...")
         pdf_extracted_text = read_pdf(file_name)
         prompt_with_context = f"Here is the PDF content from file '{file_name}':\n\n{pdf_extracted_text}\n\nAnalyze and break down this data concisely for the user."
         conversation_history.append({"role": "user", "content": prompt_with_context})
-
     else:
         conversation_history.append({"role": "user", "content": user_input})
 
     try:
+        # Level 4 Pro-Move Swap: Utilizing high-speed engine layer to optimize token longevity
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=conversation_history,
             tools=aira_tools,        
             tool_choice="auto"       
@@ -638,7 +634,6 @@ while True:
         
         if message.tool_calls:
             print("\n🤖 [AIRA Agent Mode Triggered!]")
-            
             serialized_tool_calls = []
             for tool_call in message.tool_calls:
                 serialized_tool_calls.append({
@@ -658,7 +653,6 @@ while True:
             
             for tool_call in message.tool_calls:
                 func_name = tool_call.function.name
-                
                 try:
                     func_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
                 except Exception:
@@ -682,12 +676,10 @@ while True:
                     })
             
             print("⏳ Feeding action results back to AIRA for confirmation text assembly...")
-            
             final_response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=conversation_history
             )
-            
             final_reply = final_response.choices[0].message.content
             print(f"\nAIRA: {final_reply}\n")
             conversation_history.append({"role": "assistant", "content": final_reply})
@@ -700,7 +692,6 @@ while True:
         
     except Exception as e:
         print(f"❌ Connection error interacting with the AI processing node: {e}")
-        
         if "400" in str(e):
             print("⚠️ [Self-Healing] Broken tool sequence detected. Resetting chat history to clear the lock...")
             conversation_history = list(DEFAULT_SYSTEM_PROMPT)
