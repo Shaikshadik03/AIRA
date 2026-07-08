@@ -368,6 +368,11 @@ def execute_headless_brain_inference(incoming_text: str) -> str:
                 name = tc.function.name
                 try: args = json.loads(tc.function.arguments) if tc.function.arguments else {}
                 except Exception: args = {}
+                
+                # 🛡️ Level 10 Mapping Safety Guardrail Check
+                if not isinstance(args, dict): 
+                    args = {}
+                    
                 if name in tool_registry:
                     res = tool_registry[name](**args)
                     conversation_history.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
