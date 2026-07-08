@@ -25,7 +25,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Production Cloud Engine", version="1.4.0")
+app = FastAPI(title="AIRA OS Production SaaS Toolkit", version="1.5.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -74,6 +74,27 @@ def init_relational_database():
             category TEXT,
             description TEXT,
             timestamp TEXT
+        )
+    """)
+    
+    # SaaS Category Budget Enforcement Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS budgets (
+            user_id TEXT,
+            category TEXT,
+            amount REAL,
+            PRIMARY KEY (user_id, category)
+        )
+    """)
+    
+    # SaaS Automated Subscription Tracking Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            name TEXT,
+            cost REAL,
+            renewal_date TEXT
         )
     """)
     
@@ -178,7 +199,7 @@ def rename_file(old_name: str, new_name: str, **kwargs) -> str:
     if not is_safe_path(old_name) or not is_safe_path(new_name):
         return "Security Exception: Blocked attempt to mutate path properties outside the sandbox."
     try:
-        if not os.path.exists(old_name):
+        if os.path.exists(old_name):
             return f"System Error: '{old_name}' does not exist."
         os.rename(old_name, new_name)
         return f"System message: Successfully renamed '{old_name}' to '{new_name}'."
@@ -238,28 +259,88 @@ def log_expense(amount: float, category: str, description: str, user_id: str, **
     except Exception as e:
         return f"System Error: Isolated database transaction update routine aborted: {e}"
 
-def get_financial_report(user_id: str, **kwargs) -> str:
+def set_monthly_budget(category: str, amount: float, user_id: str, **kwargs) -> str:
+    """Saves a maximum monetary spend threshold row for a specific tracking category category."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT amount, category, description FROM expenses WHERE user_id = ?", (user_id,))
-        rows = cursor.fetchall()
+        cursor.execute(
+            "INSERT OR REPLACE INTO budgets (user_id, category, amount) VALUES (?, ?, ?)",
+            (user_id, category.lower().strip(), float(amount))
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Budget constraint mapped. Isolated cap for '{category}' set to {amount} for '{user_id}'."
+    except Exception as e:
+        return f"System Error: Failed to save relational budget row: {e}"
+
+def add_subscription(name: str, cost: float, renewal_date: str, user_id: str, **kwargs) -> str:
+    """Registers an automated monthly billing commitment string with timestamp analytics."""
+    try:
+        datetime.strptime(renewal_date.strip(), "%Y-%m-%d")
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO subscriptions (user_id, name, cost, renewal_date) VALUES (?, ?, ?, ?)",
+            (user_id, name.strip(), float(cost), renewal_date.strip())
+        )
+        conn.commit()
+        conn.close()
+        return f"System message: Subscription track locked. Registered '{name}' at cost {cost} renewing on {renewal_date}."
+    except ValueError:
+        return "System Error: Date constraints must conform specifically to exact YYYY-MM-DD strings."
+    except Exception as e:
+        return f"System Error: Failed to record billing matrix row: {e}"
+
+def get_financial_report(user_id: str, **kwargs) -> str:
+    """Compiles a data tracking overview parsing asset expenses cross-referenced against category budgets and subscription cards."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        # Pull expenses
+        cursor.execute("SELECT amount, category FROM expenses WHERE user_id = ?", (user_id,))
+        expense_rows = cursor.fetchall()
+        
+        # Pull budgets
+        cursor.execute("SELECT category, amount FROM budgets WHERE user_id = ?", (user_id,))
+        budget_map = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        # Pull subscriptions
+        cursor.execute("SELECT name, cost, renewal_date FROM subscriptions WHERE user_id = ?", (user_id,))
+        sub_rows = cursor.fetchall()
+        
         conn.close()
         
-        if not rows:
-            return f"System message: Zero structural ledger entries discovered for Secure Context footprint: '{user_id}'."
+        total_spent = sum([r[0] for r in expense_rows])
+        cat_spent = {}
+        for amount, category in expense_rows:
+            cat_spent[category] = cat_spent.get(category, 0.0) + amount
             
-        total_spent = sum([r[0] for r in rows])
-        breakdown = {}
-        for amount, category, desc in rows:
-            breakdown[category] = breakdown.get(category, 0.0) + amount
+        report_text = f"📊 Cloud Row-Isolated Financial Balance Sheet [{user_id}]:\n- Overall Aggregate Spending: {total_spent}\n\n"
+        
+        report_text += "Itemized Budgets Enforcement Matrix:\n"
+        all_categories = set(list(cat_spent.keys()) + list(budget_map.keys()))
+        if not all_categories:
+            report_text += "  (Zero recorded categorical ledger data structures found)\n"
+        for cat in all_categories:
+            spent = cat_spent.get(cat, 0.0)
+            limit = budget_map.get(cat, None)
+            if limit is not None:
+                status = "🔥 OVER BUDGET!" if spent > limit else "🟢 WITHIN CAP"
+                report_text += f"  * {cat.title()}: Spent {spent} / Cap: {limit} ({status})\n"
+            else:
+                report_text += f"  * {cat.title()}: Spent {spent} / No Cap Limit Configured\n"
+                
+        report_text += "\nActive Automated Subscription Streams:\n"
+        if not sub_rows:
+            report_text += "  (Zero recurring tracking subscriptions mapped to this token profile)\n"
+        for name, cost, r_date in sub_rows:
+            report_text += f"  * {name}: {cost} recurring (Next billing cycle: {r_date})\n"
             
-        report_text = f"📊 Cloud Row-Isolated Financial Balance Sheet [{user_id}]:\n- Aggregate Spending: {total_spent}\n\nItemized Breakdown:\n"
-        for category, subtotal in breakdown.items():
-            report_text += f"  * {category.title()}: {subtotal}\n"
         return report_text
     except Exception as e:
-        return f"System Error: Row-isolated analytics query mapping failed: {e}"
+        return f"System Error: Isolated metrics pipeline summation failure: {e}"
 
 def get_hardware_status(**kwargs) -> str:
     try:
@@ -414,12 +495,12 @@ def trigger_cloud_integration(endpoint_url: str, payload_json_string: str, **kwa
         return f"System Error: Cloud integration failed: {e}"
 
 
-# Scalable Multi-Tenant Safe Function Core Registries Pointer Dictionary
+# Scalable Multi-Tenant Function Core Registry Toolbelt Blueprint
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
     "rename_file": rename_file, "delete_file": delete_file, "read_file": read_file, "read_pdf": read_pdf,
-    "log_expense": log_expense, "get_financial_report": get_financial_report,
+    "log_expense": log_expense, "set_monthly_budget": set_monthly_budget, "add_subscription": add_subscription, "get_financial_report": get_financial_report,
     "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
     "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
     "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
@@ -439,7 +520,9 @@ aira_tools = [
     {"type": "function", "function": {"name": "read_file", "description": "Reads text strings stored in target file.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
     {"type": "function", "function": {"name": "read_pdf", "description": "Extracts text content from a local PDF document file for analysis or summarization.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]}}},
     {"type": "function", "function": {"name": "log_expense", "description": "Logs an expense entry with a numeric cost value, strict metadata category, and text tracking details.", "parameters": {"type": "object", "properties": {"amount": {"type": "number"}, "category": {"type": "string"}, "description": {"type": "string"}}, "required": ["amount", "category", "description"]}}},
-    {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a tracking summary parsing total outflux calculations and categorical itemized ledgers.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "set_monthly_budget", "description": "Sets a maximum monthly spending threshold caps constraint limit for an itemized spending category.", "parameters": {"type": "object", "properties": {"category": {"type": "string"}, "amount": {"type": "number"}}, "required": ["category", "amount"]}}},
+    {"type": "function", "function": {"name": "add_subscription", "description": "Logs an active recurring card membership subscription tracking automated monthly bills.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "cost": {"type": "number"}, "renewal_date": {"type": "string"}}, "required": ["name", "cost", "renewal_date"]}}},
+    {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a data summary tracking spending aggregates, category budget compliance ratios, and subscription timelines.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
     {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
@@ -472,11 +555,11 @@ def fetch_isolated_user_history(user_id: str):
     system_prompt_string = (
         "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
         "Respond directly and concisely with adaptive candor and a touch of wit. "
-        f"You are running inside a production cloud web architecture. Active session user token: {user_id}. {profile_ctx}\n\n"
-        "ROW-ISOLATION SECURITY OPERATIONAL RULES:\n"
-        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts ('Normal Mode').\n"
-        "2. Natively invoke structural action tools autonomously whenever requested by user intents.\n"
-        "3. You operate within a strict multi-tenant framework. Do not pollute overlapping cross-tenant session arrays.\n"
+        f"You are running inside a multi-tenant subscription framework. Active session user token: {user_id}. {profile_ctx}\n\n"
+        "SAAS OPERATIONS MANDATE:\n"
+        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts.\n"
+        "2. Natively invoke structural budgeting tools autonomously whenever requested by user intents.\n"
+        "3. Cross-reference expense reports with 'set_monthly_budget' and 'add_subscription' metadata rows automatically.\n"
         "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
     )
     
@@ -557,10 +640,10 @@ def running_multiplatform_listener_loop():
     """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 20 Production Engine] Telegram Listener Standby Mode: Token missing.")
+        print("🪐 [Level 21 Toolkit Node] Telegram Listener Standby Mode: Token missing.")
         return
         
-    print("🚀 [Level 20 Production Engine] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Level 21 Toolkit Node] Listening to Mobile Cloud Bot Vectors...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
     
@@ -654,7 +737,6 @@ if __name__ == "__main__":
     
     # Run the production API server engine node
     import uvicorn
-    # DYNAMIC DOCKER CONTAINER ENVIRONMENT PORT ALLOCATION
     cloud_assigned_port = int(os.getenv("PORT", 8000))
     print(f"⚡ Deploying Production-Optimized Engine Node Server on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
