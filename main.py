@@ -14,6 +14,10 @@ load_dotenv()
 # Initialize the Groq cloud communication client
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+# Persistent Memory Storage Pointers
+MEMORY_FILE = "memory.json"
+PROFILE_FILE = "profile.json"
+
 # =====================================================================
 # 🚀 AIRA V4 SYSTEM — AGENT ACTION TOOL CORES
 # =====================================================================
@@ -112,7 +116,7 @@ def read_file(filename: str) -> str:
         if os.path.isdir(filename):
             return f"System Error: '{filename}' is a directory folder structure, not a text file data block."
             
-        with open(filename, "r", encoding="utf-8") as f:
+        with open(filename, "w", encoding="utf-8") as f:
             file_data = f.read()
         return f"Workspace File Execution Payload ('{filename}'):\n{file_data}"
     except Exception as e:
@@ -143,7 +147,6 @@ def get_hardware_status() -> str:
 def launch_app(app_name: str) -> str:
     """Spawns a local native desktop application process on Windows safely using Shell Execution."""
     try:
-        # Secure Explicit Mapping Table built from Shadik's Task Manager layouts
         app_lookup = {
             "notepad": "notepad.exe",
             "calculator": "calc.exe",
@@ -160,14 +163,11 @@ def launch_app(app_name: str) -> str:
         
         target_clean_name = app_name.lower().strip()
         
-        # 🌟 UPGRADE: Bulletproof Dual-Route Claude Execution Guard
         if "claude" in target_clean_name:
             try:
-                # Route A: Attempt to initialize local application register
                 os.startfile("claude.exe")
                 return "System message: Successfully deployed and executed native Claude desktop app window."
             except Exception:
-                # Route B: Automatic browser fallback routing if app path isn't globally registered
                 webbrowser.open("https://claude.ai")
                 return "System message: Local shortcut path wasn't open. Successfully fell back to launching Claude AI via web browser."
         
@@ -179,6 +179,44 @@ def launch_app(app_name: str) -> str:
             return f"System Error: '{app_name}' is not registered in the safe app registry profile layout."
     except Exception as e:
         return f"System Error: Failed to spawn system app interface. Reason: {e}"
+
+def save_profile_fact(fact_key: str, fact_value: str) -> str:
+    """Saves a permanent fact about the user into their long-term profile memory database."""
+    try:
+        profile = {}
+        if os.path.exists(PROFILE_FILE):
+            with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+                try:
+                    profile = json.load(f)
+                except Exception:
+                    profile = {}
+                    
+        profile[fact_key.lower().strip()] = fact_value.strip()
+        
+        with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+            json.dump(profile, f, indent=4)
+        return f"System message: Long-term fact securely saved: '{fact_key}' = '{fact_value}'."
+    except Exception as e:
+        return f"System Error: Failed to write data to long-term memory file. Reason: {e}"
+
+def read_profile_facts() -> str:
+    """Reads all permanently stored profile facts about the user from the long-term database file."""
+    try:
+        if not os.path.exists(PROFILE_FILE):
+            return "System message: Long-term profile memory database file is currently entirely empty."
+        with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+            try:
+                profile = json.load(f)
+            except Exception:
+                return "System message: Long-term database is empty or unreadable."
+                
+        if not profile:
+            return "System message: Long-term profile memory database file is currently empty."
+            
+        formatted_facts = "\n".join([f"- {k.title()}: {v}" for k, v in profile.items()])
+        return f"Long-Term Database Scan Output:\n{formatted_facts}"
+    except Exception as e:
+        return f"System Error: Failed to parse permanent long-term memory registers. Reason: {e}"
 
 
 # 2. Scalable Tool Registry Directory Mapping
@@ -193,7 +231,9 @@ tool_registry = {
     "delete_file": delete_file,
     "read_file": read_file,
     "get_hardware_status": get_hardware_status,
-    "launch_app": launch_app  
+    "launch_app": launch_app,
+    "save_profile_fact": save_profile_fact,
+    "read_profile_facts": read_profile_facts
 }
 
 # 3. Dynamic Native AI Agent Tool Blueprints (JSON Schema Toolbox Array)
@@ -332,6 +372,29 @@ aira_tools = [
                 "required": ["app_name"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_profile_fact",
+            "description": "Permanently saves a key background fact about the user to a long-term file layout. Use this tool whenever the user tells you personal details about themselves.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fact_key": {"type": "string", "description": "The description label of the fact topic identifier. Example: 'favorite_language'."},
+                    "fact_value": {"type": "string", "description": "The detailed value string to store. Example: 'Python'."}
+                },
+                "required": ["fact_key", "fact_value"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_profile_facts",
+            "description": "Pulls and reads all long-term saved profile data facts currently held in the database register. Use this whenever the user asks what you know about them.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
     }
 ]
 
@@ -363,17 +426,80 @@ def search_web(query: str) -> str:
         return f"System Error: Failed to fetch search results. Reason: {e}"
 
 # =====================================================================
-# 💾 AIRA V2 SYSTEM — PERSISTENT STORAGE MEMORY LOADER
+# 💾 AIRA V4 SYSTEM — COMPACTION OPTIMIZATION LOGIC
 # =====================================================================
-MEMORY_FILE = "memory.json"
+def auto_compact_history(history, groq_client):
+    """🌟 LEVEL 4 ENGINE: Compresses middle logs to guarantee elite execution speeds."""
+    if len(history) <= 20:
+        return history
+        
+    print("\n⚡ [Memory Optimizer Triggered] Short-term history is getting too long!")
+    print("⏳ Running background distillation compression on old logs...")
+    
+    try:
+        # Keep system prompt intact, extract middle logs for compression
+        system_prompt = history[0]
+        slice_to_compress = history[1:-4]  # Leave the last 4 messages active for recent chat context
+        recent_messages = history[-4:]
+        
+        # Turn the target slice into a clear text layout for the model to review
+        raw_text_to_condense = ""
+        for msg in slice_to_compress:
+            role = msg.get("role", "user").upper()
+            content = msg.get("content") or ""
+            if msg.get("tool_calls"):
+                content += " [System Tool Invocations Executed]"
+            raw_text_to_condense += f"{role}: {content}\n"
+            
+        compaction_prompt = (
+            "You are an elite system background memory manager.\n"
+            "Analyze the conversational timeline history below, and condense it entirely into a "
+            "single, tight narrative paragraph. Focus exclusively on key topics decided, instructions finalized, "
+            "and files created or altered. Do not include chat greetings.\n\n"
+            f"Timeline logs to compress:\n{raw_text_to_condense}"
+        )
+        
+        compaction_response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": compaction_prompt}]
+        )
+        
+        compressed_summary = compaction_response.choices[0].message.content
+        print("✅ Distillation complete! Saved workspace chat capacity.\n")
+        
+        # Rebuild the array using the fresh compact summary block
+        optimized_history = [
+            system_prompt,
+            {"role": "system", "content": f"Summary background profile of previous interactions in this session: {compressed_summary}"}
+        ]
+        optimized_history.extend(recent_messages)
+        return optimized_history
+    except Exception as e:
+        print(f"⚠️ Memory compaction routine skipped. Reason: {e}")
+        return history
+
+# =====================================================================
+# 💾 AIRA V2 SYSTEM — PERSISTENT STORAGE MEMORY LOADER & FACT INJECTION
+# =====================================================================
+loaded_profile_context = ""
+if os.path.exists(PROFILE_FILE):
+    with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+        try:
+            profile_data = json.load(f)
+            if profile_data:
+                facts_list = [f"{k.upper()}: {v}" for k, v in profile_data.items()]
+                loaded_profile_context = "\nKnown user profile background data:\n" + "\n".join(facts_list)
+        except Exception:
+            pass
 
 DEFAULT_SYSTEM_PROMPT = [
     {
         "role": "system", 
         "content": (
-            "You are AIRA, a highly professional AI agent designed by Shadik. "
-            "Respond directly and clearly. When calling tools, strictly output function "
-            "formats without altering formatting or tags."
+            "You are AIRA, a professional and highly capable AI agent built by Shadik. "
+            "Respond directly and concisely. Balance helpful technical insight with adaptive candor and a touch of wit. "
+            f"You are talking directly to Shadik on his personal computer. {loaded_profile_context}\n\n"
+            "Natively incorporate this context into your tone. Keep response processing efficient, and use tools automatically when required."
         )
     }
 ]
@@ -382,14 +508,19 @@ if os.path.exists(MEMORY_FILE):
     with open(MEMORY_FILE, "r") as f:
         try:
             conversation_history = json.load(f)
-            print("🤖 Loaded previous memory layout successfully!\n")
+            print("🤖 Loaded previous memory layout successfully!")
+            if conversation_history and conversation_history[0]["role"] == "system":
+                conversation_history[0] = DEFAULT_SYSTEM_PROMPT[0]
         except Exception:
             conversation_history = list(DEFAULT_SYSTEM_PROMPT)
-            print("⚠️ Memory file was unreadable. Started with fresh profile.\n")
+            print("⚠️ Memory file was unreadable. Started with fresh profile.")
 else:
     conversation_history = list(DEFAULT_SYSTEM_PROMPT)
 
-print("⚡ AIRA is online and running! Type 'exit' to cleanly close down.")
+if loaded_profile_context:
+    print("🧠 Long-term user profile background facts injected into the system prompt core!")
+
+print("\n⚡ AIRA is online and running! Type 'exit' to cleanly close down.")
 print("🌐 Format web search inquiries as: 'search: your question'")
 print("📄 Format PDF document readings as: 'pdf: filename.pdf'\n")
 
@@ -397,6 +528,9 @@ print("📄 Format PDF document readings as: 'pdf: filename.pdf'\n")
 # 💬 AIRA V1 SYSTEM — INTERACTIVE MAIN LOOP
 # =====================================================================
 while True:
+    # 🌟 RUN THE AUTO COMPACTION CHECKER AT THE TOP OF EVERY LOOP CYCLE
+    conversation_history = auto_compact_history(conversation_history, client)
+
     user_input = input("You: ").strip()
     
     if user_input.lower() == "exit":
