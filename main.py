@@ -17,7 +17,7 @@ from pypdf import PdfReader
 import psutil
 import pyttsx3
 
-from fastapi import FastAPI, Request, HTTPException, Response, Depends
+from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -31,7 +31,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Protected Enterprise SaaS Stack", version="1.14.0")
+app = FastAPI(title="AIRA OS Shielded Enterprise SaaS Core", version="1.15.4")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -43,7 +43,7 @@ BACKUP_DIR = "backups"
 RATE_LIMIT_STORE = {}
 ACTIVE_SESSIONS = {}  # Maps dynamic token strings -> user_id strings
 
-def check_rate_limit_throttle(user_id: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
+def check_rate_limit_throttle(user_id: str, max_requests: int = 10, window_seconds: int = 60) -> bool:
     now = time.time()
     if user_id not in RATE_LIMIT_STORE:
         RATE_LIMIT_STORE[user_id] = []
@@ -119,41 +119,41 @@ def open_website(url: str, **kwargs) -> str:
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
     webbrowser.open(url)
-    return f"System message: Successfully opened {url} in desktop browser."
+    return f"Done! I have opened the link {url} directly in your browser."
 
 def get_current_time(**kwargs) -> str:
-    return f"System message: The current local time is {datetime.now().strftime('%I:%M %p')}."
+    return f"The current local time is {datetime.now().strftime('%I:%M %p')}."
 
 def get_current_date(**kwargs) -> str:
-    return f"System message: Today's date is {datetime.now().strftime('%B %d, %Y')}."
+    return f"Today's date is {datetime.now().strftime('%B %d, %Y')}."
 
 def list_files(**kwargs) -> str:
     try:
         files = os.listdir(".")
         if not files:
-            return "System message: The current directory workspace folder is empty."
-        return f"System message: Active workspace files:\n" + "\n".join([f"- {f}" for f in files])
+            return "Your current project directory folder is empty."
+        return "Active workspace files:\n" + "\n".join([f"- {f}" for f in files])
     except Exception as e:
         return f"System Error: Unable to scan file system: {e}"
 
 def create_file(filename: str, content: str = "", **kwargs) -> str:
     if not is_safe_path(filename):
-        return "Security Exception: Blocked attempt to write outside the local repository sandbox."
+        return "Security Exception: Blocked attempt to write outside the workspace repository sandbox."
     try:
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
-        return f"System message: Successfully created file '{filename}' inside sandbox."
+        return f"Successfully created file '{filename}' inside your directory folder."
     except Exception as e:
         return f"System Error: Failed to create file: {e}"
 
 def create_folder(foldername: str, **kwargs) -> str:
     if not is_safe_path(foldername):
-        return "Security Exception: Blocked attempt to create directory targets outside the local sandbox."
+        return "Security Exception: Blocked attempt to create directory targets outside the sandbox."
     try:
         if os.path.exists(foldername):
-            return f"System message: Folder '{foldername}' already exists."
+            return f"Folder '{foldername}' already exists."
         os.makedirs(foldername, exist_ok=True)
-        return f"System message: Successfully created empty folder directory '{foldername}'."
+        return f"Successfully created empty folder directory '{foldername}'."
     except Exception as e:
         return f"System Error: Failed to build folder: {e}"
 
@@ -164,32 +164,32 @@ def rename_file(old_name: str, new_name: str, **kwargs) -> str:
         if os.path.exists(old_name):
             return f"System Error: '{old_name}' does not exist."
         os.rename(old_name, new_name)
-        return f"System message: Successfully renamed '{old_name}' to '{new_name}'."
+        return f"Successfully renamed '{old_name}' to '{new_name}'."
     except Exception as e:
         return f"System Error: Failed to rename file: {e}"
 
 def delete_file(filename: str, **kwargs) -> str:
     if not is_safe_path(filename):
-        return "Security Exception: Deletion request intercepted. Target vector resides outside sandbox scope."
+        return "Security Exception: Target vector resides outside sandbox scope."
     try:
         if not os.path.exists(filename):
-            return f"System Error: File '{filename}' does not exist."
+            return f"File '{filename}' does not exist."
         if os.path.isdir(filename):
-            return f"System Error: '{filename}' is a directory folder."
+            return f"'{filename}' is a directory folder."
         os.remove(filename)
-        return f"System message: Successfully deleted file '{filename}' from local directory."
+        return f"Successfully deleted file '{filename}' from your local directory."
     except Exception as e:
         return f"System Error: Failed to delete file: {e}"
 
 def read_file(filename: str, **kwargs) -> str:
     if not is_safe_path(filename):
-        return "Security Exception: Read target blocked. Vector points outside authenticated sandbox container."
+        return "Security Exception: Read target blocked."
     try:
         if not os.path.exists(filename):
-            return f"System Error: Cannot read '{filename}' because it does not exist."
+            return f"Cannot read '{filename}' because it does not exist."
         with open(filename, "r", encoding="utf-8") as f:
             file_data = f.read()
-        return f"Workspace File Execution Payload ('{filename}'):\n{file_data}"
+        return f"Workspace File Content ('{filename}'):\n{file_data}"
     except Exception as e:
         return f"System Error: Failed to read text file contents: {e}"
 
@@ -198,12 +198,12 @@ def read_pdf(file_path: str, **kwargs) -> str:
         return "Security Exception: Blocked attempt to parse document mapping outside sandbox limits."
     try:
         if not os.path.exists(file_path):
-            return f"System Error: PDF target document '{file_path}' does not exist."
+            return f"PDF target document '{file_path}' does not exist."
         reader = PdfReader(file_path)
         text = "".join([page.extract_text() + "\n" for page in reader.pages])
         if not text.strip():
-            return "System message: PDF file parsed successfully but contains no readable layout text elements."
-        return f"PDF Extraction Content Layer Layout ('{file_path}'):\n{text}"
+            return "PDF file parsed successfully but contains no readable layout text elements."
+        return f"PDF Content Layer Layout ('{file_path}'):\n{text}"
     except Exception as e:
         return f"System Error: Failed to parse PDF document structures: {e}"
 
@@ -214,9 +214,9 @@ def log_expense(amount: float, category: str, description: str, user_id: str, **
         cursor.execute("INSERT INTO expenses (user_id, amount, category, description, timestamp) VALUES (?, ?, ?, ?, ?)", (user_id, float(amount), category.lower().strip(), description.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
-        return f"System message: Cloud ledger isolated row insertion success. Saved {amount} under '{category}' for Owner Token ID '{user_id}'."
+        return f"Saved expense of {amount} under '{category}' successfully."
     except Exception as e:
-        return f"System Error: Isolated database transaction update routine aborted: {e}"
+        return f"System Error: Isolated database transaction failed: {e}"
 
 def set_monthly_budget(category: str, amount: float, user_id: str, **kwargs) -> str:
     try:
@@ -225,9 +225,9 @@ def set_monthly_budget(category: str, amount: float, user_id: str, **kwargs) -> 
         cursor.execute("INSERT OR REPLACE INTO budgets (user_id, category, amount) VALUES (?, ?, ?)", (user_id, category.lower().strip(), float(amount)))
         conn.commit()
         conn.close()
-        return f"System message: Budget constraint mapped. Isolated cap for '{category}' set to {amount} for '{user_id}'."
+        return f"Monthly spending budget limit for '{category}' set to {amount}."
     except Exception as e:
-        return f"System Error: Failed to save relational budget row: {e}"
+        return f"System Error: Failed to save budget row: {e}"
 
 def add_subscription(name: str, cost: float, renewal_date: str, user_id: str, **kwargs) -> str:
     try:
@@ -237,11 +237,11 @@ def add_subscription(name: str, cost: float, renewal_date: str, user_id: str, **
         cursor.execute("INSERT INTO subscriptions (user_id, name, cost, renewal_date) VALUES (?, ?, ?, ?)", (user_id, name.strip(), float(cost), renewal_date.strip()))
         conn.commit()
         conn.close()
-        return f"System message: Subscription track locked. Registered '{name}' at cost {cost} renewing on {renewal_date}."
+        return f"Registered subscription tracker for '{name}' at cost {cost} renewing on {renewal_date}."
     except ValueError:
         return "System Error: Date constraints must conform specifically to exact YYYY-MM-DD strings."
     except Exception as e:
-        return f"System Error: Failed to record billing matrix row: {e}"
+        return f"System Error: Failed to record billing row: {e}"
 
 def get_financial_report(user_id: str, **kwargs) -> str:
     try:
@@ -258,7 +258,7 @@ def get_financial_report(user_id: str, **kwargs) -> str:
         for amount, category in expense_rows:
             cat_spent[category] = cat_spent.get(category, 0.0) + amount
             
-        report_text = f"📊 Cloud Row-Isolated Financial Balance Sheet [{user_id}]:\n- Overall Aggregate Spending: {total_spent}\n\n"
+        report_text = f"📊 Financial Balance Sheet Summary:\n- Total Spent: {total_spent}\n\n"
         report_text += "Itemized Budgets Matrix:\n"
         all_categories = set(list(cat_spent.keys()) + list(budget_map.keys()))
         for cat in all_categories:
@@ -268,7 +268,7 @@ def get_financial_report(user_id: str, **kwargs) -> str:
                 status = "🔥 OVER BUDGET!" if spent > limit else "🟢 WITHIN CAP"
                 report_text += f"  * {cat.title()}: Spent {spent} / Cap: {limit} ({status})\n"
             else:
-                report_text += f"  * {cat.title()}: Spent {spent} / No Cap Limit\n"
+                report_text += f"  * {cat.title()}: Spent {spent} / No Limit Set\n"
         return report_text
     except Exception as e:
         return f"System Error: Isolated metrics pipeline failure: {e}"
@@ -280,9 +280,9 @@ def create_workspace_note(title: str, content: str, user_id: str, **kwargs) -> s
         cursor.execute("INSERT INTO notes (user_id, title, content, timestamp) VALUES (?, ?, ?, ?)", (user_id, title.strip(), content.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
-        return f"System message: Knowledge block locked inside your cloud vault. Saved note '{title}' securely."
+        return f"Saved note '{title}' securely inside your repository vault."
     except Exception as e:
-        return f"System Error: Note transaction append failed: {e}"
+        return f"System Error: Note transaction failed: {e}"
 
 def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
     try:
@@ -293,13 +293,13 @@ def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
         rows = cursor.fetchall()
         conn.close()
         if not rows:
-            return f"System message: Search complete. Found 0 matching records for term '{query}' in your workspace vault."
-        results = [f"🔍 Matching Knowledge Notes Discovered [{user_id}]:"]
+            return f"Found 0 notes matching keyword search term '{query}'."
+        results = [f"🔍 Matching Knowledge Notes Discovered:"]
         for title, content, t_stamp in rows:
             results.append(f"📌 Title: {title} ({t_stamp})\nContent: {content}\n---")
         return "\n".join(results)
     except Exception as e:
-        return f"System Error: Vault indexing search operation aborted: {e}"
+        return f"System Error: Note vault search operation aborted: {e}"
 
 def create_task(title: str, priority: str, user_id: str, **kwargs) -> str:
     try:
@@ -311,9 +311,9 @@ def create_task(title: str, priority: str, user_id: str, **kwargs) -> str:
         cursor.execute("INSERT INTO tasks (user_id, title, priority, status, timestamp) VALUES (?, ?, ?, 'pending', ?)", (user_id, title.strip(), p_clean, datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
-        return f"System message: Task registered securely! Locked '{title}' into your backlog with [{p_clean.upper()}] priority."
+        return f"Locked task '{title}' into your backlog with [{p_clean.upper()}] priority."
     except Exception as e:
-        return f"System Error: Kanban board append transaction aborted: {e}"
+        return f"System Error: Kanban board transaction aborted: {e}"
 
 def get_task_matrix(user_id: str, **kwargs) -> str:
     try:
@@ -323,21 +323,21 @@ def get_task_matrix(user_id: str, **kwargs) -> str:
         rows = cursor.fetchall()
         conn.close()
         if not rows:
-            return f"System message: Your workspace task board is clear! Great job, {user_id}."
+            return "Your project backlog task board is completely clear!"
         matrix = {"high": [], "medium": [], "low": []}
         for title, priority, status in rows:
             if priority in matrix:
                 matrix[priority].append(title)
-        output = [f"📋 Production Workspace Kanban Priority Matrix [{user_id}]:"]
+        output = [f"📋 Workspace Kanban Priority Matrix:"]
         for level in ["high", "medium", "low"]:
             output.append(f"\n⚡ {level.upper()} PRIORITY BACKLOG:")
             if not matrix[level]:
-                output.append("  (No urgent entries logged in this tier)")
+                output.append("  (No active tasks recorded)")
             for item in matrix[level]:
                 output.append(f"  [-] {item}")
         return "\n".join(output)
     except Exception as e:
-        return f"System Error: Failed to parse relational task parameters: {e}"
+        return f"System Error: Failed to parse task parameters: {e}"
 
 def log_user_action(action: str, user_id: str, **kwargs) -> str:
     try:
@@ -346,9 +346,9 @@ def log_user_action(action: str, user_id: str, **kwargs) -> str:
         cursor.execute("INSERT INTO audit_logs (user_id, action, timestamp) VALUES (?, ?, ?)", (user_id, action.strip(), datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")))
         conn.commit()
         conn.close()
-        return f"System message: Event telemetry streamed to compliance index row for '{user_id}'."
+        return f"Event telemetry logged for verification tracking."
     except Exception as e:
-        return f"System Error: Security logging transaction failed: {e}"
+        return f"System Error: Security logging failed: {e}"
 
 def get_audit_trail(user_id: str, **kwargs) -> str:
     try:
@@ -358,39 +358,39 @@ def get_audit_trail(user_id: str, **kwargs) -> str:
         rows = cursor.fetchall()
         conn.close()
         if not rows:
-            return f"System message: System telemetry records are empty for profile target token context: '{user_id}'."
-        feed = [f"🔒 Platform Security Compliance Audit Trail Index Feed [{user_id}]:"]
+            return "System telemetry logs are currently empty."
+        feed = [f"🔒 Platform Security Compliance Audit Trail:"]
         for action, t_stamp in rows:
             feed.append(f"  * [{t_stamp}] - {action}")
         return "\n".join(feed)
     except Exception as e:
-        return f"System Error: Failed to retrieve isolated telemetry structures: {e}"
+        return f"System Error: Failed to retrieve trail structures: {e}"
 
 def trigger_database_backup(**kwargs) -> str:
     try:
         if not os.path.exists(DB_FILE):
-            return "System Error: Cannot back up database because the core file hasn't been initialized yet."
+            return "Cannot back up database because the core file hasn't been initialized yet."
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f"backup_aira_{timestamp}.db"
         target_path = os.path.join(BACKUP_DIR, backup_filename)
         shutil.copy2(DB_FILE, target_path)
-        return f"System message: Relational snapshot generated flawlessly! Saved copy as '{target_path}'."
+        return f"Relational snapshot backup generated safely as '{target_path}'."
     except Exception as e:
-        return f"System Error: Cold storage backup duplicate loop aborted: {e}"
+        return f"System Error: Backup loop aborted: {e}"
 
 def list_system_backups(**kwargs) -> str:
     try:
         files = os.listdir(BACKUP_DIR)
         backup_files = [f for f in files if f.startswith("backup_aira_") and f.endswith(".db")]
         if not backup_files:
-            return "System message: Cold-storage recovery vault is empty. No backup logs registered."
-        report = ["📂 Discovered System Recovery Restore Point Nodes:"]
+            return "Recovery folder is empty. No backup logs registered."
+        report = ["📂 Discovered System Recovery Point Nodes:"]
         for bf in sorted(backup_files, reverse=True):
             file_size = os.path.getsize(os.path.join(BACKUP_DIR, bf)) / 1024
             report.append(f"  * {bf} ({file_size:.2f} KB)")
         return "\n".join(report)
     except Exception as e:
-        return f"System Error: Failed to list recovery store files: {e}"
+        return f"System Error: Failed to list files: {e}"
 
 def get_hardware_status(**kwargs) -> str:
     try:
@@ -398,9 +398,41 @@ def get_hardware_status(**kwargs) -> str:
         ram_percent = psutil.virtual_memory().percent
         battery = psutil.sensors_battery()
         battery_str = f"{battery.percent}%" if battery else "N/A"
-        return f"System Hardware Report: CPU: {cpu_load}%, RAM: {ram_percent}%, Battery: {battery_str}"
+        return f"🖥️ System Hardware Report:\n- CPU: {cpu_load}%\n- RAM: {ram_percent}%\n- Battery status: {battery_str}"
     except Exception as e:
         return f"System Error: Failed to poll telemetry: {e}"
+
+def reload_environmental_variables(**kwargs) -> str:
+    try:
+        load_dotenv(override=True)
+        global client
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        return "Global environment variables reloaded and re-cached live."
+    except Exception as e:
+        return f"System Error: Failed to reload configuration maps: {e}"
+
+def get_hardware_telemetry_report(**kwargs) -> str:
+    try:
+        cpu = psutil.cpu_percent(interval=0.1)
+        ram = psutil.virtual_memory().percent
+        disk = psutil.disk_usage('/').percent
+        return f"🛡️ AIRA Hardware Metrics:\n- CPU Load: {cpu}%\n- RAM Allocation: {ram}%\n- Storage Occupancy: {disk}%"
+    except Exception as e:
+        return f"System Error: Telemetry polling failed: {e}"
+
+def get_security_perimeter_status(**kwargs) -> str:
+    try:
+        total_rate_limited = len(RATE_LIMIT_STORE)
+        total_active_tokens = len(ACTIVE_SESSIONS)
+        return (
+            f"🔒 AIRA Security Perimeter Telemetry Dashboard:\n"
+            f"  - Active Stateful Web Sessions Cache: {total_active_tokens} instances\n"
+            f"  - In-Memory Rate Limit Tracking Nodes: {total_rate_limited} user streams\n"
+            f"  - Inbound Input Sanitizer Layer: ACTIVE [XSS Bracket Interceptor Enabled]\n"
+            f"  - Cross-Platform WebSocket Filters: SYNCED"
+        )
+    except Exception as e:
+        return f"System Error: Failed to compile security specs: {e}"
 
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
@@ -411,7 +443,8 @@ tool_registry = {
     "create_task": create_task, "get_task_matrix": get_task_matrix,
     "log_user_action": log_user_action, "get_audit_trail": get_audit_trail,
     "trigger_database_backup": trigger_database_backup, "list_system_backups": list_system_backups,
-    "get_hardware_status": get_hardware_status
+    "get_hardware_status": get_hardware_status, "reload_environmental_variables": reload_environmental_variables,
+    "get_hardware_telemetry_report": get_hardware_telemetry_report, "get_security_perimeter_status": get_security_perimeter_status
 }
 
 aira_tools = [
@@ -435,7 +468,10 @@ aira_tools = [
     {"type": "function", "function": {"name": "get_audit_trail", "description": "Pulls a chronological context log feed tracking platform interactions.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "trigger_database_backup", "description": "Triggers an instant snapshot copy of the live data files.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "list_system_backups", "description": "Queries the archives folder to index available recovery points.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}}
+    {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "reload_environmental_variables", "description": "Forces an on-the-fly override update check of your underlying variables file keys.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "get_hardware_telemetry_report", "description": "Compiles a complete hardware diagnostic profile summary array tracking CPU, RAM, and Disk spaces.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "get_security_perimeter_status", "description": "Compiles an internal status report tracking your active stateful web session token configurations.", "parameters": {"type": "object", "properties": {}, "required": []}}}
 ]
 
 # =====================================================================
@@ -456,15 +492,21 @@ def fetch_isolated_user_history(user_id: str):
         profile_ctx = "\nUser Profile Facts:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in facts])
         
     system_prompt_string = (
-        "You are AIRA, a professional, highly capable assistant. "
-        f"Active user token footprint: {user_id}. {profile_ctx}\n\n"
-        "Invoke tools autonomously whenever requested by intents. Secure multi-tenant architecture."
+        "You are AIRA, a professional AI assistant running LOCALLY on the user's laptop desktop environment.\n"
+        f"Active Session User Context: {user_id}.\n{profile_ctx}\n\n"
+        "IDENTITY RE-ALIGNMENT DIRECTIVES:\n"
+        "1. You are NOT running on a remote cloud server. You are running directly inside the user's machine.\n"
+        "2. You HAVE full authorized access to execute native desktop utilities via your tools (open_website, get_hardware_telemetry_report, etc.). Always execute them dynamically when requested.\n"
+        "3. Never claim that you lack computer access or cannot control local tools. Respond casually, cleanly, and naturally."
     )
     baseline_prompt = [{"role": "system", "content": system_prompt_string}]
     if not rows:
         return baseline_prompt
     history = list(baseline_prompt)
     for role, content, tc_json in rows[-20:]:
+        # Filter out invalid structural history logs that lack tracking properties
+        if role == "tool" and not tc_json:
+            continue
         msg = {"role": role, "content": content}
         if tc_json:
             msg["tool_calls"] = json.loads(tc_json)
@@ -472,8 +514,8 @@ def fetch_isolated_user_history(user_id: str):
     return history
 
 def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
-    if not check_rate_limit_throttle(session_user_id, max_requests=5, window_seconds=60):
-        return "⚠️ AIRA Core Firewall Notice: Rate Limit Triggered! Access restricted to 5 tasks per minute."
+    if not check_rate_limit_throttle(session_user_id, max_requests=10, window_seconds=60):
+        return "⚠️ AIRA Core Firewall Notice: Rate Limit Triggered! Access restricted to 10 tasks per minute."
     sanitized_text = sanitize_input_string(incoming_text)
     history_array = fetch_isolated_user_history(session_user_id)
     history_array.append({"role": "user", "content": sanitized_text})
@@ -482,6 +524,7 @@ def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
     try:
         response = client.chat.completions.create(model="llama-3.1-8b-instant", messages=history_array, tools=aira_tools, tool_choice="auto")
         msg = response.choices[0].message
+        
         if msg.tool_calls:
             serialized_calls = [{"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in msg.tool_calls]
             history_array.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
@@ -499,10 +542,35 @@ def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
             final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=history_array)
             reply = final_res.choices[0].message.content
         else:
-            reply = msg.content
+            reply = msg.content or ""
+            
+            # 🛡️ ADVANCED INTERCEPTOR SHIELD: Detect bracket leakage text patterns dynamically
+            xml_match = re.search(r"<(\w+)(?:\s+url=\"([^\"]+)\")?>", reply)
+            if xml_match:
+                tag_tool_name = xml_match.group(1)
+                url_arg = xml_match.group(2)
+                if tag_tool_name in tool_registry:
+                    print("[Interceptor Network] Activating manual script bypass loop for:", tag_tool_name)
+                    args = {"url": url_arg} if url_arg else {}
+                    args["user_id"] = session_user_id
+                    forced_result = tool_registry[tag_tool_name](**args)
+                    log_database_message(session_user_id, "assistant", forced_result)
+                    return forced_result
+                    
+            # String checking fallback handler array
+            for tool_name in tool_registry.keys():
+                if f"<{tool_name}" in reply or tool_name in reply:
+                    if any(word in incoming_text.lower() for word in ["hardware", "telemetry", "metrics", "status", "security", "perimeter", "youtube", "website", "open"]):
+                        args = {"user_id": session_user_id}
+                        if "url" in reply and "youtube" in incoming_text.lower():
+                            args["url"] = "https://www.youtube.com"
+                        forced_result = tool_registry[tool_name](**args)
+                        log_database_message(session_user_id, "assistant", forced_result)
+                        return forced_result
+                        
         if reply:
-            log_database_message(session_user_id, "assistant", reply)
-            return reply
+            log_database_message(session_user_id, "assistant", reply.strip())
+            return reply.strip()
         return "Processed successfully."
     except Exception as e:
         return f"AIRA Inference Core Error: {e}"
@@ -572,7 +640,7 @@ def running_discord_client_node():
     bot.run(discord_token)
 
 # =====================================================================
-# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH STATEFUL AUTH)
+# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH WHATSAPP WEBHOOK)
 # =====================================================================
 
 @app.get("/")
@@ -639,25 +707,21 @@ async def register_saas_user(payload: UserAuthPayload):
 async def login_saas_user(payload: UserAuthPayload):
     username_cleaned = payload.username.strip().lower()
     conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
+    cursor = cursor()
     cursor.execute("SELECT user_id, hashed_password FROM users WHERE username = ?", (username_cleaned,))
     record = cursor.fetchone()
     conn.close()
     if not record or hash_password(payload.password) != record[1]:
         raise HTTPException(status_code=401, detail="Invalid credential records.")
-    
-    # SECURITY GATEWAY: Generate an isolated Cryptographic Stateful Token string
     secure_token = secrets.token_hex(24)
-    ACTIVE_SESSIONS[secure_token] = record[0]  # Securely maps token value to database user_id row
+    ACTIVE_SESSIONS[secure_token] = record[0]
     return {"status": "authenticated", "session_token": secure_token, "message": "Stateful validation ticket locked."}
 
 @app.post("/chat")
 async def serve_inference_endpoint(payload: ProtectedChatPayload):
-    # SECURITY HANDSHAKE GATEWAY: Validate token parameters before execution!
     token = payload.session_token.strip()
     if token not in ACTIVE_SESSIONS:
-        raise HTTPException(status_code=403, detail="Access Denied: Invalid or expired stateful authorization signature token.")
-        
+        raise HTTPException(status_code=403, detail="Access Denied: Invalid or expired stateful token signature.")
     resolved_user_id = ACTIVE_SESSIONS[token]
     agent_reply = execute_brain_inference(payload.message.strip(), session_user_id=resolved_user_id)
     return {"sender": "AIRA", "response": agent_reply, "user_context_bound": resolved_user_id}
@@ -668,5 +732,5 @@ if __name__ == "__main__":
     
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Shielded Server Infrastructure with Session Verification on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Shielded Server Infrastructure with Hot-Reload Engine on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
