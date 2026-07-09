@@ -8,6 +8,7 @@ import sqlite3
 import hashlib
 import shutil
 import re
+import secrets
 from datetime import datetime
 from dotenv import load_dotenv
 from groq import Groq
@@ -16,7 +17,7 @@ from pypdf import PdfReader
 import psutil
 import pyttsx3
 
-from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi import FastAPI, Request, HTTPException, Response, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -30,19 +31,19 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Cross-Platform SaaS Server", version="1.13.0")
+app = FastAPI(title="AIRA OS Protected Enterprise SaaS Stack", version="1.14.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
 BACKUP_DIR = "backups"
 
 # =====================================================================
-# 🛡️ PRODUCTION SECURITY LAYER: PAYLOAD SANITIZER & ANTI-SPAM TUNNELS
+# 🛡️ IN-MEMORY RATE LIMITING & STATEFUL SESSION TRACKING
 # =====================================================================
 RATE_LIMIT_STORE = {}
+ACTIVE_SESSIONS = {}  # Maps dynamic token strings -> user_id strings
 
 def check_rate_limit_throttle(user_id: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
-    """Evaluates request frequencies within a shifting timeframe window profile."""
     now = time.time()
     if user_id not in RATE_LIMIT_STORE:
         RATE_LIMIT_STORE[user_id] = []
@@ -53,7 +54,6 @@ def check_rate_limit_throttle(user_id: str, max_requests: int = 5, window_second
     return True
 
 def sanitize_input_string(text: str) -> str:
-    """Cryptographically scrubs out structural script brackets to prevent injection strings."""
     if not text:
         return ""
     scrubbed = re.sub(r"<script.*?>.*?</script.*?>", "", text, flags=re.IGNORECASE | re.DOTALL)
@@ -95,8 +95,8 @@ class UserAuthPayload(BaseModel):
     username: str
     password: str
 
-class ChatPayload(BaseModel):
-    user_id: str
+class ProtectedChatPayload(BaseModel):
+    session_token: str
     message: str
 
 # =====================================================================
@@ -251,8 +251,6 @@ def get_financial_report(user_id: str, **kwargs) -> str:
         expense_rows = cursor.fetchall()
         cursor.execute("SELECT category, amount FROM budgets WHERE user_id = ?", (user_id,))
         budget_map = {row[0]: row[1] for row in cursor.fetchall()}
-        cursor.execute("SELECT name, cost, renewal_date FROM subscriptions WHERE user_id = ?", (user_id,))
-        sub_rows = cursor.fetchall()
         conn.close()
         
         total_spent = sum([r[0] for r in expense_rows])
@@ -261,7 +259,7 @@ def get_financial_report(user_id: str, **kwargs) -> str:
             cat_spent[category] = cat_spent.get(category, 0.0) + amount
             
         report_text = f"📊 Cloud Row-Isolated Financial Balance Sheet [{user_id}]:\n- Overall Aggregate Spending: {total_spent}\n\n"
-        report_text += "Itemized Budgets Enforcement Matrix:\n"
+        report_text += "Itemized Budgets Matrix:\n"
         all_categories = set(list(cat_spent.keys()) + list(budget_map.keys()))
         for cat in all_categories:
             spent = cat_spent.get(cat, 0.0)
@@ -270,7 +268,7 @@ def get_financial_report(user_id: str, **kwargs) -> str:
                 status = "🔥 OVER BUDGET!" if spent > limit else "🟢 WITHIN CAP"
                 report_text += f"  * {cat.title()}: Spent {spent} / Cap: {limit} ({status})\n"
             else:
-                report_text += f"  * {cat.title()}: Spent {spent} / No Cap Limit Configured\n"
+                report_text += f"  * {cat.title()}: Spent {spent} / No Cap Limit\n"
         return report_text
     except Exception as e:
         return f"System Error: Isolated metrics pipeline failure: {e}"
@@ -279,10 +277,7 @@ def create_workspace_note(title: str, content: str, user_id: str, **kwargs) -> s
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO notes (user_id, title, content, timestamp) VALUES (?, ?, ?, ?)",
-            (user_id, title.strip(), content.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p"))
-        )
+        cursor.execute("INSERT INTO notes (user_id, title, content, timestamp) VALUES (?, ?, ?, ?)", (user_id, title.strip(), content.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
         return f"System message: Knowledge block locked inside your cloud vault. Saved note '{title}' securely."
@@ -294,16 +289,11 @@ def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         search_term = f"%{query.lower().strip()}%"
-        cursor.execute(
-            "SELECT title, content, timestamp FROM notes WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?)",
-            (user_id, search_term, search_term)
-        )
+        cursor.execute("SELECT title, content, timestamp FROM notes WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?)", (user_id, search_term, search_term))
         rows = cursor.fetchall()
         conn.close()
-        
         if not rows:
             return f"System message: Search complete. Found 0 matching records for term '{query}' in your workspace vault."
-            
         results = [f"🔍 Matching Knowledge Notes Discovered [{user_id}]:"]
         for title, content, t_stamp in rows:
             results.append(f"📌 Title: {title} ({t_stamp})\nContent: {content}\n---")
@@ -318,10 +308,7 @@ def create_task(title: str, priority: str, user_id: str, **kwargs) -> str:
             p_clean = "medium"
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO tasks (user_id, title, priority, status, timestamp) VALUES (?, ?, ?, 'pending', ?)",
-            (user_id, title.strip(), p_clean, datetime.now().strftime("%Y-%m-%d %I:%M %p"))
-        )
+        cursor.execute("INSERT INTO tasks (user_id, title, priority, status, timestamp) VALUES (?, ?, ?, 'pending', ?)", (user_id, title.strip(), p_clean, datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
         return f"System message: Task registered securely! Locked '{title}' into your backlog with [{p_clean.upper()}] priority."
@@ -335,15 +322,12 @@ def get_task_matrix(user_id: str, **kwargs) -> str:
         cursor.execute("SELECT title, priority, status FROM tasks WHERE user_id = ? AND status = 'pending'", (user_id,))
         rows = cursor.fetchall()
         conn.close()
-        
         if not rows:
             return f"System message: Your workspace task board is clear! Great job, {user_id}."
-            
         matrix = {"high": [], "medium": [], "low": []}
         for title, priority, status in rows:
             if priority in matrix:
                 matrix[priority].append(title)
-                
         output = [f"📋 Production Workspace Kanban Priority Matrix [{user_id}]:"]
         for level in ["high", "medium", "low"]:
             output.append(f"\n⚡ {level.upper()} PRIORITY BACKLOG:")
@@ -418,121 +402,6 @@ def get_hardware_status(**kwargs) -> str:
     except Exception as e:
         return f"System Error: Failed to poll telemetry: {e}"
 
-def launch_app(app_name: str, **kwargs) -> str:
-    try:
-        app_lookup = {"notepad": "notepad.exe", "calculator": "calc.exe", "paint": "mspaint.exe", "task_manager": "taskmgr.exe", "chrome": "chrome.exe", "vs_code": "code"}
-        target_name = app_name.lower().strip()
-        if target_name in app_lookup:
-            os.startfile(app_lookup[target_name])
-            return f"System message: Successfully launched application process for '{target_name}'."
-        return f"System Error: '{app_name}' is not registered in the safe app profile."
-    except Exception as e:
-        return f"System Error: Failed to launch system app: {e}"
-
-def kill_app_process(app_name: str, **kwargs) -> str:
-    try:
-        target = app_name.lower().strip()
-        process_target = target if target.endswith(".exe") else f"{target}.exe"
-        killed_count = 0
-        for proc in psutil.process_iter(['name']):
-            try:
-                if proc.info['name'] and proc.info['name'].lower() == process_target.lower():
-                    proc.kill()
-                    killed_count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-        if killed_count > 0:
-            return f"System message: Successfully terminated {killed_count} running instance(s) of '{process_target}'."
-        return f"System message: Process target scan completed. Zero instances running."
-    except Exception as e:
-        return f"System Error: Process slayer pipeline failed: {e}"
-
-def save_profile_fact(fact_key: str, fact_value: str, user_id: str, **kwargs) -> str:
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("INSERT OR REPLACE INTO profile_memory (user_id, fact_key, fact_value) VALUES (?, ?, ?)", (user_id, fact_key.lower().strip(), fact_value.strip()))
-        conn.commit()
-        conn.close()
-        return f"System message: Secure long-term row memory synchronized: '{fact_key}' = '{fact_value}'."
-    except Exception as e:
-        return f"System Error: Context-isolated write operation aborted: {e}"
-
-def read_profile_facts(user_id: str, **kwargs) -> str:
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (user_id,))
-        rows = cursor.fetchall()
-        conn.close()
-        if not rows:
-            return f"System message: Long-term profile metadata registry map is empty for owner context: '{user_id}'."
-        return f"Long-Term Cloud Database Facts [{user_id}]:\n" + "\n".join([f"- {k.title()}: {v}" for k, v in rows])
-    except Exception as e:
-        return f"System Error: Failed to extract row-isolated profile arrays: {e}"
-
-def add_deadline(event_name: str, target_date: str, user_id: str, **kwargs) -> str:
-    try:
-        datetime.strptime(target_date.strip(), "%Y-%m-%d")
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("INSERT OR REPLACE INTO deadlines (user_id, event_name, target_date) VALUES (?, ?, ?)", (user_id, event_name.strip(), target_date.strip()))
-        conn.commit()
-        conn.close()
-        return f"System message: Dynamic target date locked successfully for '{event_name}' on {target_date}."
-    except ValueError:
-        return "System Error: Invalid layout string format. Target dates must be exactly YYYY-MM-DD."
-    except Exception as e:
-        return f"System Error: Failed to update database scheduler structures: {e}"
-
-def get_countdown_alerts(user_id: str, **kwargs) -> str:
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT event_name, target_date FROM deadlines WHERE user_id = ?", (user_id,))
-        rows = cursor.fetchall()
-        conn.close()
-        if not rows:
-            return f"System message: No milestone tracking metrics registered for account row isolation: '{user_id}'."
-        today = datetime.now().date()
-        countdown_report = [f"Live Target Countdown Registers [{user_id}]:"]
-        for event, date_str in rows:
-            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            days_left = (target_date - today).days
-            if days_left > 0:
-                countdown_report.append(f"- {event}: {days_left} days remaining (Target: {date_str})")
-            elif days_left == 0:
-                countdown_report.append(f"- 🔥 {event}: IS HAPPENING TODAY!")
-            else:
-                countdown_report.append(f"- {event}: Passed {abs(days_left)} days ago ({date_str})")
-        return "\n".join(countdown_report)
-    except Exception as e:
-        return f"System Error: Failed to compute chronological data parameters: {e}"
-
-def search_internet(query: str, **kwargs) -> str:
-    try:
-        with DDGS() as ddgs:
-            results = [r for r in ddgs.text(query, max_results=4)]
-            if not results:
-                return "System message: Search query returned 0 active text results."
-            search_text = "Live Search Engine Indexes Retrieved:\n"
-            for r in results:
-                search_text += f"Title: {r['title']}\nSnippet: {r['body']}\n\n"
-            return search_text
-    except Exception as e:
-        return f"System Error: Failed to complete internet search: {e}"
-
-def trigger_cloud_integration(endpoint_url: str, payload_json_string: str, **kwargs) -> str:
-    try:
-        data_packet = json.loads(payload_json_string)
-        headers = {"Content-Type": "application/json", "User-Agent": "AIRA-OS-Agent-Core"}
-        response = requests.post(endpoint_url, json=data_packet, headers=headers, timeout=8)
-        if response.status_code in [200, 201]:
-            return f"System message: Cloud Integration successful! Response code: {response.status_code}."
-        return f"System message: Cloud server returned status code: {response.status_code}."
-    except Exception as e:
-        return f"System Error: Cloud integration failed: {e}"
-
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
@@ -542,10 +411,7 @@ tool_registry = {
     "create_task": create_task, "get_task_matrix": get_task_matrix,
     "log_user_action": log_user_action, "get_audit_trail": get_audit_trail,
     "trigger_database_backup": trigger_database_backup, "list_system_backups": list_system_backups,
-    "get_hardware_status": get_hardware_status, "launch_app": launch_app, "kill_app_process": kill_app_process,
-    "save_profile_fact": save_profile_fact, "read_profile_facts": read_profile_facts, "add_deadline": add_deadline,
-    "get_countdown_alerts": get_countdown_alerts, "search_internet": search_internet,
-    "trigger_cloud_integration": trigger_cloud_integration
+    "get_hardware_status": get_hardware_status
 }
 
 aira_tools = [
@@ -569,9 +435,7 @@ aira_tools = [
     {"type": "function", "function": {"name": "get_audit_trail", "description": "Pulls a chronological context log feed tracking platform interactions.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "trigger_database_backup", "description": "Triggers an instant snapshot copy of the live data files.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "list_system_backups", "description": "Queries the archives folder to index available recovery points.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
-    {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}}
+    {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}}
 ]
 
 # =====================================================================
@@ -708,7 +572,7 @@ def running_discord_client_node():
     bot.run(discord_token)
 
 # =====================================================================
-# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH WHATSAPP WEBHOOK)
+# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH STATEFUL AUTH)
 # =====================================================================
 
 @app.get("/")
@@ -718,24 +582,21 @@ async def serve_root_api_healthcheck():
         "engine": "AIRA OS SaaS Protected Security Core",
         "timestamp": datetime.now().isoformat(),
         "sandbox_root": WORKSPACE_ROOT,
-        "firewall_rules": "rate_limiting_and_sanitization_active",
+        "firewall_rules": "rate_limiting_and_stateful_session_verification_active",
         "telemetry": {
-            "cpu_utilization_percent": psutil.cpu_percent(),
-            "memory_utilization_percent": psutil.virtual_memory().percent
+            "active_secure_web_sessions": len(ACTIVE_SESSIONS)
         }
     }
 
-# Meta/WhatsApp Webhook Handshake Endpoint Verification Protocol (GET)
 @app.get("/webhook/whatsapp")
 async def verify_whatsapp_webhook(request: Request):
     params = request.query_params
     verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "AIRA_SECRET_TOKEN")
     if params.get("hub.mode") == "subscribe" and params.get("hub.verify_token") == verify_token:
-        print("🔒 [WhatsApp Security Gateway] Webhook challenge handshake verified successfully with Meta.")
+        print("🔒 [WhatsApp Security Gateway] Webhook challenge verified.")
         return Response(content=params.get("hub.challenge"), media_type="text/plain")
     raise HTTPException(status_code=403, detail="Verification token mismatch.")
 
-# Meta/WhatsApp Inbound Webhook Payload Processing Node Interface (POST)
 @app.post("/webhook/whatsapp")
 async def handle_whatsapp_inbound(request: Request):
     try:
@@ -751,11 +612,8 @@ async def handle_whatsapp_inbound(request: Request):
                     if msg.get("type") == "text":
                         text_body = msg["text"].get("body", "")
                         active_user = f"whatsapp_{phone_number}"
-                        print(f"📲 [WhatsApp Webhook Packet] Inbound stream caught from '{active_user}': {text_body}")
-                        
-                        # Process target payload through user row context isolation layer
+                        print(f"📲 [WhatsApp Webhook] Inbound stream caught from '{active_user}'")
                         aira_reply = execute_brain_inference(text_body, session_user_id=active_user)
-                        print(f"📤 [WhatsApp Outbound Queue] Queued outbound response package string back to Meta vector.")
         return {"status": "event_processed"}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Webhook execution error: {e}"})
@@ -787,16 +645,22 @@ async def login_saas_user(payload: UserAuthPayload):
     conn.close()
     if not record or hash_password(payload.password) != record[1]:
         raise HTTPException(status_code=401, detail="Invalid credential records.")
-    return {"status": "authenticated", "authenticated_user_id": record[0]}
+    
+    # SECURITY GATEWAY: Generate an isolated Cryptographic Stateful Token string
+    secure_token = secrets.token_hex(24)
+    ACTIVE_SESSIONS[secure_token] = record[0]  # Securely maps token value to database user_id row
+    return {"status": "authenticated", "session_token": secure_token, "message": "Stateful validation ticket locked."}
 
 @app.post("/chat")
-async def serve_inference_endpoint(payload: ChatPayload):
-    try:
-        target_user = sanitize_input_string(payload.user_id).strip().lower()
-        agent_reply = execute_brain_inference(payload.message.strip(), session_user_id=target_user)
-        return {"sender": "AIRA", "response": agent_reply, "user_context_bound": target_user}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"Database processing anomaly: {e}"})
+async def serve_inference_endpoint(payload: ProtectedChatPayload):
+    # SECURITY HANDSHAKE GATEWAY: Validate token parameters before execution!
+    token = payload.session_token.strip()
+    if token not in ACTIVE_SESSIONS:
+        raise HTTPException(status_code=403, detail="Access Denied: Invalid or expired stateful authorization signature token.")
+        
+    resolved_user_id = ACTIVE_SESSIONS[token]
+    agent_reply = execute_brain_inference(payload.message.strip(), session_user_id=resolved_user_id)
+    return {"sender": "AIRA", "response": agent_reply, "user_context_bound": resolved_user_id}
 
 if __name__ == "__main__":
     threading.Thread(target=running_telegram_listener_loop, daemon=True).start()
@@ -804,5 +668,5 @@ if __name__ == "__main__":
     
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Cross-Platform Multi-Tenant Production Engine Core on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Shielded Server Infrastructure with Session Verification on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
