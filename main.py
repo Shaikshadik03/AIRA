@@ -31,7 +31,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Shielded Enterprise SaaS Core", version="1.16.1")
+app = FastAPI(title="AIRA OS Shielded Enterprise SaaS Core", version="1.17.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -99,6 +99,12 @@ class UserAuthPayload(BaseModel):
 class ProtectedChatPayload(BaseModel):
     session_token: str
     message: str
+
+class AutomationWebhookPayload(BaseModel):
+    auth_secret: str
+    target_user_id: str
+    action_intent: str  # Options: "create_task", "create_note", "log_expense"
+    payload_data: dict
 
 # =====================================================================
 # 🔒 SECURE SANDBOX DIRECTORY GUARDRAIL LAYER
@@ -436,12 +442,10 @@ def get_security_perimeter_status(**kwargs) -> str:
         return f"System Error: Failed to compile security specs: {e}"
 
 def switch_ai_engine(engine_name: str = "llama-70b", user_id: str = "default", **kwargs) -> str:
-    """Dynamically routes your user session context token to switch between different high-capacity AI processing brains safely."""
     if not engine_name:
         engine_name = "llama-70b"
     normalized_name = str(engine_name).lower().strip()
     
-    # Supported Core Engine Footprint Keys map
     valid_engines = {
         "llama-8b": "llama-3.1-8b-instant",
         "llama-70b": "llama-3.3-70b-specdec",
@@ -521,7 +525,7 @@ def fetch_isolated_user_history(user_id: str):
         f"Active Session User Context: {user_id}.\n{profile_ctx}\n\n"
         "IDENTITY RE-ALIGNMENT DIRECTIVES:\n"
         "1. You are NOT running on a remote cloud server. You are running directly inside the user's machine.\n"
-        "2. You HAVE full authorized access to execute native desktop utilities via your tools (open_website, get_hardware_telemetry_report, switch_ai_engine, etc.). Always execute them dynamically when requested.\n"
+        "2. You HAVE full authorized access to execute native desktop utilities via your tools.\n"
         "3. Never claim that you lack computer access or cannot control local tools. Respond casually, cleanly, and naturally."
     )
     baseline_prompt = [{"role": "system", "content": system_prompt_string}]
@@ -545,13 +549,10 @@ def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
     history_array.append({"role": "user", "content": sanitized_text})
     log_database_message(session_user_id, "user", sanitized_text)
     
-    # DYNAMIC ROUTER LAYER: Fetch user selection or fall back to standard core tier
     assigned_model = USER_ENGINE_REGISTRY.get(session_user_id, "llama-3.1-8b-instant")
-    print(f"📡 [Model Router Engine] Channeling prompt payload from '{session_user_id}' to: {assigned_model}")
     
     try:
         if "failover-cluster" in assigned_model:
-            print(f"⚠️ [Failover Shield] External key configuration missing for {assigned_model}. Routing to Llama 70B Core...")
             assigned_model = "llama-3.3-70b-specdec"
             
         response = client.chat.completions.create(model=assigned_model, messages=history_array, tools=aira_tools, tool_choice="auto")
@@ -568,7 +569,6 @@ def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
                 except Exception: args = {}
                 args["user_id"] = session_user_id
                 
-                # Shield: Ensure engine_name has fallback if tool calls omit it
                 if name == "switch_ai_engine" and "engine_name" not in args:
                     args["engine_name"] = "llama-70b"
                     
@@ -581,20 +581,17 @@ def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
         else:
             reply = msg.content or ""
             
-            # 🛡️ ADVANCED INTERCEPTOR SHIELD: Detect bracket leakage text patterns dynamically
             xml_match = re.search(r"<(\w+)(?:\s+url=\"([^\"]+)\")?>", reply)
             if xml_match:
                 tag_tool_name = xml_match.group(1)
                 url_arg = xml_match.group(2)
                 if tag_tool_name in tool_registry:
-                    print("[Interceptor Network] Activating manual script bypass loop for:", tag_tool_name)
                     args = {"url": url_arg} if url_arg else {}
                     args["user_id"] = session_user_id
                     forced_result = tool_registry[tag_tool_name](**args)
                     log_database_message(session_user_id, "assistant", forced_result)
                     return forced_result
                     
-            # String checking fallback handler array
             for tool_name in tool_registry.keys():
                 if f"<{tool_name}" in reply or tool_name in reply:
                     if any(word in incoming_text.lower() for word in ["hardware", "telemetry", "metrics", "status", "security", "perimeter", "youtube", "website", "open", "switch", "engine", "model"]):
@@ -633,7 +630,6 @@ def log_database_message(user_id: str, role: str, content: str, tool_calls=None)
 def running_telegram_listener_loop():
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Telegram Node] Standby Mode: Token missing.")
         return
     print("🚀 [Telegram Node] Sync Complete. Listening...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
@@ -658,7 +654,6 @@ def running_telegram_listener_loop():
 def running_discord_client_node():
     discord_token = os.getenv("DISCORD_BOT_TOKEN")
     if not discord_token or discord_token == "YOUR_DISCORD_TOKEN_HERE":
-        print("🪐 [Discord Node] Standby Mode: Token missing.")
         return
     intents = discord.Intents.default()
     intents.message_content = True
@@ -680,7 +675,7 @@ def running_discord_client_node():
     bot.run(discord_token)
 
 # =====================================================================
-# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH WHATSAPP WEBHOOK)
+# 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE (WITH AUTOMATION HUB)
 # =====================================================================
 
 @app.get("/")
@@ -690,20 +685,40 @@ async def serve_root_api_healthcheck():
         "engine": "AIRA OS SaaS Protected Security Core",
         "timestamp": datetime.now().isoformat(),
         "sandbox_root": WORKSPACE_ROOT,
-        "firewall_rules": "rate_limiting_and_stateful_session_verification_active",
-        "telemetry": {
-            "active_secure_web_sessions": len(ACTIVE_SESSIONS)
-        }
+        "firewall_rules": "rate_limiting_and_stateful_session_verification_active"
     }
 
-@app.get("/webhook/whatsapp")
-async def verify_whatsapp_webhook(request: Request):
-    params = request.query_params
-    verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "AIRA_SECRET_TOKEN")
-    if params.get("hub.mode") == "subscribe" and params.get("hub.verify_token") == verify_token:
-        print("🔒 [WhatsApp Security Gateway] Webhook challenge verified.")
-        return Response(content=params.get("hub.challenge"), media_type="text/plain")
-    raise HTTPException(status_code=403, detail="Verification token mismatch.")
+# ⚡ LEVEL 30: INBOUND WEBHOOK NODE FOR n8n & ZAPIER INTEGRATION WORKFLOWS
+@app.post("/webhook/automation")
+async def handle_external_workflow_trigger(payload: AutomationWebhookPayload):
+    # Security Token Check Boundary Layer Configuration
+    secure_verify_secret = os.getenv("AUTOMATION_SECRET_KEY", "AIRA_WORKFLOW_TOKEN_777")
+    if payload.auth_secret != secure_verify_secret:
+        raise HTTPException(status_code=403, detail="Access Denied: Invalid Workflow Webhook Secret Signature.")
+        
+    intent = payload.action_intent.lower().strip()
+    data = payload.payload_data
+    uid = payload.target_user_id.strip()
+    
+    print(f"⚡ [Workflow Integration Node] Caught external automation trigger. Intent: '{intent}' for user: '{uid}'")
+    
+    try:
+        if intent == "create_task":
+            res = create_task(title=data.get("title", "Untitled Automation Task"), priority=data.get("priority", "medium"), user_id=uid)
+            return {"status": "success", "execution_result": res}
+            
+        elif intent == "create_note":
+            res = create_workspace_note(title=data.get("title", "Automated Note"), content=data.get("content", ""), user_id=uid)
+            return {"status": "success", "execution_result": res}
+            
+        elif intent == "log_expense":
+            res = log_expense(amount=float(data.get("amount", 0.0)), category=data.get("category", "general"), description=data.get("description", "n8n/Zapier Triggered"), user_id=uid)
+            return {"status": "success", "execution_result": res}
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Unrecognized workflow operation action intent: '{intent}'")
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Workflow Processing Error: {e}"})
 
 @app.post("/webhook/whatsapp")
 async def handle_whatsapp_inbound(request: Request):
