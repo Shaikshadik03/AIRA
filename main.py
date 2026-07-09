@@ -9,9 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-# 📦 1. DATA BLUEPRINT DEFINED FIRST (Fixes the 422 parsing error)
+# 📦 DEFENSIVE DATA BLUEPRINT (Specifying a default value prevents 422 validation crashes!)
 class ChatPayload(BaseModel):
     message: str
+    user: str = "Shaik Shadik"  # Fallback identity parameter defaults to the Creator
 
 # Initialize your core network engine app
 app = FastAPI(title="AIRA Core AI Network Node")
@@ -26,8 +27,8 @@ app.add_middleware(
 )
 
 DB_FILE = "aira_cloud_node.db"
+NOTE_FILE = "aira_notes.txt"
 
-# 💾 THE DATABASE INITIALIZATION NODE
 def init_memory_database():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -36,6 +37,7 @@ def init_memory_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             role TEXT,
             content TEXT,
+            user_identity TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -43,10 +45,10 @@ def init_memory_database():
     conn.close()
     print("💾 [Database Node] Local memory clusters verified and indexed.")
 
-def save_message_to_history(role: str, content: str):
+def save_message_to_history(role: str, content: str, user_identity: str):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO system_chat_logs (role, content) VALUES (?, ?)", (role, content))
+    cursor.execute("INSERT INTO system_chat_logs (role, content, user_identity) VALUES (?, ?, ?)", (role, content, user_identity))
     conn.commit()
     conn.close()
 
@@ -62,7 +64,6 @@ def fetch_recent_context_history(limit=6):
         formatted_history.append({"role": role, "content": content})
     return formatted_history
 
-# 🗝️ AUTOMATIC ENV KEY EXTRACTOR NODE
 def fetch_groq_api_key():
     if os.path.exists(".env"):
         with open(".env", "r") as env_file:
@@ -71,78 +72,72 @@ def fetch_groq_api_key():
                     return line.split("=")[1].strip().strip('"').strip("'")
     return os.getenv("GROQ_API_KEY", "")
 
-# 📡 THE LIVE CHAT ROUTING & MEMORY INTERFACE
+# 📡 THE LIVE CHAT ROUTING INTERFACE WITH AUTONOMOUS FIREWALL PROTOCOLS
 @app.post("/chat")
 async def handle_flutter_chat(payload: ChatPayload):
     user_instruction = payload.message
-    print(f"\n📲 [Frontend Interface] Inbound text frame caught: '{user_instruction}'")
+    sender_name = payload.user
+    
+    print(f"\n📲 [Inbound Frame] User: '{sender_name}' | Prompt: '{user_instruction}'")
     
     clean_cmd = user_instruction.lower().strip().replace('"', '').replace("'", "")
     
-    # ⚡ AUTOMATION INTERCEPT BLOCK
-    if "open youtube" in clean_cmd:
-        webbrowser.open("https://www.youtube.com")
-        return {"response": "🚀 System matrix override complete! Opening YouTube directly on your desktop screen, Shadik."}
-    elif "open google" in clean_cmd:
-        webbrowser.open("https://www.google.com")
-        return {"response": "🌐 System matrix override complete! Spawning a clean Google Search node on your desktop, Shadik."}
-    elif "open calculator" in clean_cmd or "open calc" in clean_cmd:
-        try:
-            subprocess.Popen("calc.exe")
-            return {"response": "🧮 System matrix override complete! Waking up the local Windows Calculator utility, Shadik."}
-        except Exception as e:
-            return {"response": f"⚠️ Failed to call native system application: {str(e)}"}
+    # ⚡ AUTOMATION INTERCEPT CLUSTERS
+    automation_triggers = ["open youtube", "open google", "open calculator", "open calc", "create note", "write note"]
+    is_trigger_word_hit = any(trigger in clean_cmd for trigger in automation_triggers)
+    
+    if is_trigger_word_hit:
+        # Check authorization values
+        if sender_name != "Shaik Shadik":
+            print(f"🚨 [Security Breach Intercepted] Unauthorized occupant '{sender_name}' blocked from system controls!")
+            return {"response": f"⚠️ Access Denied. User identity verification failed. Hardware command block active. You do not possess clearance protocols to control this local host laptop node."}
+        
+        # 🟢 AUTHORIZED PASSED
+        if "open youtube" in clean_cmd:
+            webbrowser.open("https://www.youtube.com")
+            return {"response": "🚀 Identity Confirmed. System override active! Launching YouTube engine on your primary monitor screen, Shadik."}
+        elif "open google" in clean_cmd:
+            webbrowser.open("https://www.google.com")
+            return {"response": "🌐 Identity Confirmed. System override active! Opening Google navigation dashboard, Shadik."}
+        elif "open calculator" in clean_cmd or "open calc" in clean_cmd:
+            try:
+                subprocess.Popen("calc.exe")
+                return {"response": "🧮 Identity Confirmed. Waking up local Windows utility processor, Shadik."}
+            except Exception as e:
+                return {"response": f"⚠️ Local invocation failure: {str(e)}"}
+        elif "create note" in clean_cmd or "write note" in clean_cmd:
+            raw_note = user_instruction.replace("create note", "", 1).replace("Create note", "", 1).strip()
+            with open(NOTE_FILE, "w", encoding="utf-8") as f:
+                f.write(raw_note)
+            return {"response": f"📝 Identity Confirmed. Secure filesystem sector updated: wrote your data packet to '{NOTE_FILE}' safely."}
 
-    # Save user message to database
-    save_message_to_history("user", user_instruction)
-
-    # Fetch history context rows
+    # Standard database log tracking routine
+    save_message_to_history("user", user_instruction, sender_name)
     chat_context = fetch_recent_context_history(limit=6)
 
     system_instruction = {
         "role": "system", 
-        "content": "You are AIRA, a highly advanced assistant designed by Shadik. You have an active SQLite database memory cluster node—remember what Shadik told you earlier in the context log! Respond sharply and concisely."
+        "content": "You are AIRA, a premium minimalist dark-aesthetic system core assistant created by Shadik. Respond concisely, professionally, and sharply."
     }
     
     messages_payload = [system_instruction] + chat_context
-
-    print(f"🚀 [Model Router Engine] Channeling prompt payload with database history node to: llama-3.1-8b-instant")
-    
     api_key = fetch_groq_api_key()
-    if not api_key:
-        return {"response": "System Alert: Connection failed. Key error inside active workspace, Shadik."}
 
     async with aiohttp.ClientSession() as session:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        api_payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": messages_payload,
-            "temperature": 0.7
-        }
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        api_payload = {"model": "llama-3.1-8b-instant", "messages": messages_payload, "temperature": 0.5}
         
         try:
-            async with session.post(
-                "https://api.groq.com/openai/v1/chat/completions", 
-                headers=headers, 
-                json=api_payload,
-                timeout=10
-            ) as response:
+            async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=api_payload, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
                     aira_ai_reply = data["choices"][0]["message"]["content"]
-                    
-                    # Save Assistant message to history
-                    save_message_to_history("assistant", aira_ai_reply)
-                    
-                    print("🟩 [System Sync] History logged. Response packaging frame sent to frontend bubble.")
+                    save_message_to_history("assistant", aira_ai_reply, "AIRA Engine")
                     return {"response": aira_ai_reply}
                 else:
-                    return {"response": f"⚠️ Neural connection error. Status code: {response.status}"}
+                    return {"response": f"⚠️ API Core Connection Breakdown: Status {response.status}"}
         except Exception as e:
-            return {"response": f"📡 Network packet loss detected: {str(e)}"}
+            return {"response": f"📡 Network transmission timeout frame: {str(e)}"}
 
 @app.on_event("startup")
 async def app_startup_sequence():
