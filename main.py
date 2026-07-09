@@ -20,6 +20,10 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+# Import Discord Client Extension modules
+import discord
+from discord.ext import commands
+
 # Load environment variables from your .env file
 load_dotenv()
 
@@ -27,7 +31,7 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize FastAPI Web Application Server Registry Node
-app = FastAPI(title="AIRA OS Shielded Production Server", version="1.11.0")
+app = FastAPI(title="AIRA OS Cross-Platform SaaS Server", version="1.12.0")
 
 # Relational Database Storage Pointer
 DB_FILE = "aira_cloud_node.db"
@@ -36,7 +40,7 @@ BACKUP_DIR = "backups"
 # =====================================================================
 # 🛡️ PRODUCTION SECURITY LAYER: PAYLOAD SANITIZER & ANTI-SPAM TUNNELS
 # =====================================================================
-RATE_LIMIT_STORE = {}  # Maps user_id strings -> list of absolute timestamps
+RATE_LIMIT_STORE = {}
 
 def check_rate_limit_throttle(user_id: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
     """Evaluates request frequencies within a shifting timeframe window profile."""
@@ -45,7 +49,7 @@ def check_rate_limit_throttle(user_id: str, max_requests: int = 5, window_second
         RATE_LIMIT_STORE[user_id] = []
     RATE_LIMIT_STORE[user_id] = [t for t in RATE_LIMIT_STORE[user_id] if now - t < window_seconds]
     if len(RATE_LIMIT_STORE[user_id]) >= max_requests:
-        return False  # Throttled
+        return False
     RATE_LIMIT_STORE[user_id].append(now)
     return True
 
@@ -53,9 +57,7 @@ def sanitize_input_string(text: str) -> str:
     """Cryptographically scrubs out structural script brackets to prevent injection strings."""
     if not text:
         return ""
-    # Strip dangerous HTML script tags completely
     scrubbed = re.sub(r"<script.*?>.*?</script.*?>", "", text, flags=re.IGNORECASE | re.DOTALL)
-    # Remove loose structural tag brackets to neutralize markup injections
     scrubbed = scrubbed.replace("<", "&lt;").replace(">", "&gt;")
     return scrubbed.strip()
 
@@ -63,133 +65,32 @@ def sanitize_input_string(text: str) -> str:
 # 🔐 CRYPTOGRAPHIC PASSWORD HASHING UTILITY
 # =====================================================================
 def hash_password(password: str) -> str:
-    """Converts a raw password string into a secure cryptographic SHA-256 hex digest."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 # =====================================================================
 # 🗄️ RELATIONAL DATABASE INITIALIZATION & SCHEMA SETUP
 # =====================================================================
 def init_relational_database():
-    """Compiles local SQL storage structures to handle multi-tenant isolation schemas safely."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
-    # SaaS User Authentication Accounts Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id TEXT PRIMARY KEY,
-            username TEXT UNIQUE,
-            hashed_password TEXT,
-            created_at TEXT
-        )
-    """)
-    
-    # User Profile Memory Table Layout
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS profile_memory (
-            user_id TEXT,
-            fact_key TEXT,
-            fact_value TEXT,
-            PRIMARY KEY (user_id, fact_key)
-        )
-    """)
-    
-    # Financial Ledger Expenditure Table Layout
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            amount REAL,
-            category TEXT,
-            description TEXT,
-            timestamp TEXT
-        )
-    """)
-    
-    # SaaS Category Budget Enforcement Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS budgets (
-            user_id TEXT,
-            category TEXT,
-            amount REAL,
-            PRIMARY KEY (user_id, category)
-        )
-    """)
-    
-    # SaaS Automated Subscription Tracking Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS subscriptions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            name TEXT,
-            cost REAL,
-            renewal_date TEXT
-        )
-    """)
-
-    # SaaS Multi-Tenant Knowledge Note Vault Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            title TEXT,
-            content TEXT,
-            timestamp TEXT
-        )
-    """)
-
-    # SaaS Context-Isolated Task Kanban Table Layout
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            title TEXT,
-            priority TEXT,
-            status TEXT,
-            timestamp TEXT
-        )
-    """)
-
-    # SaaS Unalterable Row-Isolated Security Audit Logs Table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            action TEXT,
-            timestamp TEXT
-        )
-    """)
-    
-    # Task Planner Calendar Deadlines Table Layout
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS deadlines (
-            user_id TEXT,
-            event_name TEXT,
-            target_date TEXT,
-            PRIMARY KEY (user_id, event_name)
-        )
-    """)
-    
-    # Multi-User Persistent Conversational History Logs
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            role TEXT,
-            content TEXT,
-            tool_calls TEXT,
-            timestamp TEXT
-        )
-    """)
+    cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id TEXT PRIMARY KEY, username TEXT UNIQUE, hashed_password TEXT, created_at TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS profile_memory (user_id TEXT, fact_key TEXT, fact_value TEXT, PRIMARY KEY (user_id, fact_key))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, amount REAL, category TEXT, description TEXT, timestamp TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS budgets (user_id TEXT, category TEXT, amount REAL, PRIMARY KEY (user_id, category))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, name TEXT, cost REAL, renewal_date TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, title TEXT, content TEXT, timestamp TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, title TEXT, priority TEXT, status TEXT, timestamp TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, action TEXT, timestamp TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS deadlines (user_id TEXT, event_name TEXT, target_date TEXT, PRIMARY KEY (user_id, event_name))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, role TEXT, content TEXT, tool_calls TEXT, timestamp TEXT)")
     conn.commit()
     conn.close()
     os.makedirs(BACKUP_DIR, exist_ok=True)
 
-# Fire up relational schemas on core runtime initialization
 init_relational_database()
 
 # =====================================================================
-# 📦 FASTAPI INPUT/OUTPUT VALIDATION SCHEMAS (PYDANTIC)
+# 📦 FASTAPI INPUT/OUTPUT VALIDATION SCHEMAS
 # =====================================================================
 class UserAuthPayload(BaseModel):
     username: str
@@ -205,7 +106,6 @@ class ChatPayload(BaseModel):
 WORKSPACE_ROOT = os.path.abspath(os.getcwd())
 
 def is_safe_path(target_path: str) -> bool:
-    """Verifies if the absolute path resolution stays strictly nested within workspace roots."""
     try:
         absolute_target = os.path.abspath(target_path)
         return absolute_target.startswith(WORKSPACE_ROOT)
@@ -312,10 +212,7 @@ def log_expense(amount: float, category: str, description: str, user_id: str, **
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO expenses (user_id, amount, category, description, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (user_id, float(amount), category.lower().strip(), description.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p"))
-        )
+        cursor.execute("INSERT INTO expenses (user_id, amount, category, description, timestamp) VALUES (?, ?, ?, ?, ?)", (user_id, float(amount), category.lower().strip(), description.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
         return f"System message: Cloud ledger isolated row insertion success. Saved {amount} under '{category}' for Owner Token ID '{user_id}'."
@@ -326,10 +223,7 @@ def set_monthly_budget(category: str, amount: float, user_id: str, **kwargs) -> 
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO budgets (user_id, category, amount) VALUES (?, ?, ?)",
-            (user_id, category.lower().strip(), float(amount))
-        )
+        cursor.execute("INSERT OR REPLACE INTO budgets (user_id, category, amount) VALUES (?, ?, ?)", (user_id, category.lower().strip(), float(amount)))
         conn.commit()
         conn.close()
         return f"System message: Budget constraint mapped. Isolated cap for '{category}' set to {amount} for '{user_id}'."
@@ -341,10 +235,7 @@ def add_subscription(name: str, cost: float, renewal_date: str, user_id: str, **
         datetime.strptime(renewal_date.strip(), "%Y-%m-%d")
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO subscriptions (user_id, name, cost, renewal_date) VALUES (?, ?, ?, ?)",
-            (user_id, name.strip(), float(cost), renewal_date.strip())
-        )
+        cursor.execute("INSERT INTO subscriptions (user_id, name, cost, renewal_date) VALUES (?, ?, ?, ?)", (user_id, name.strip(), float(cost), renewal_date.strip()))
         conn.commit()
         conn.close()
         return f"System message: Subscription track locked. Registered '{name}' at cost {cost} renewing on {renewal_date}."
@@ -381,10 +272,6 @@ def get_financial_report(user_id: str, **kwargs) -> str:
                 report_text += f"  * {cat.title()}: Spent {spent} / Cap: {limit} ({status})\n"
             else:
                 report_text += f"  * {cat.title()}: Spent {spent} / No Cap Limit Configured\n"
-                
-        report_text += "\nActive Automated Subscription Streams:\n"
-        for name, cost, r_date in sub_rows:
-            report_text += f"  * {name}: {cost} recurring (Next billing cycle: {r_date})\n"
         return report_text
     except Exception as e:
         return f"System Error: Isolated metrics pipeline failure: {e}"
@@ -393,10 +280,7 @@ def create_workspace_note(title: str, content: str, user_id: str, **kwargs) -> s
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO notes (user_id, title, content, timestamp) VALUES (?, ?, ?, ?)",
-            (user_id, title.strip(), content.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p"))
-        )
+        cursor.execute("INSERT INTO notes (user_id, title, content, timestamp) VALUES (?, ?, ?, ?)", (user_id, title.strip(), content.strip(), datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
         return f"System message: Knowledge block locked inside your cloud vault. Saved note '{title}' securely."
@@ -408,16 +292,11 @@ def search_workspace_notes(query: str, user_id: str, **kwargs) -> str:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         search_term = f"%{query.lower().strip()}%"
-        cursor.execute(
-            "SELECT title, content, timestamp FROM notes WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?)",
-            (user_id, search_term, search_term)
-        )
+        cursor.execute("SELECT title, content, timestamp FROM notes WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?)", (user_id, search_term, search_term))
         rows = cursor.fetchall()
         conn.close()
-        
         if not rows:
             return f"System message: Search complete. Found 0 matching records for term '{query}' in your workspace vault."
-            
         results = [f"🔍 Matching Knowledge Notes Discovered [{user_id}]:"]
         for title, content, t_stamp in rows:
             results.append(f"📌 Title: {title} ({t_stamp})\nContent: {content}\n---")
@@ -432,10 +311,7 @@ def create_task(title: str, priority: str, user_id: str, **kwargs) -> str:
             p_clean = "medium"
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO tasks (user_id, title, priority, status, timestamp) VALUES (?, ?, ?, 'pending', ?)",
-            (user_id, title.strip(), p_clean, datetime.now().strftime("%Y-%m-%d %I:%M %p"))
-        )
+        cursor.execute("INSERT INTO tasks (user_id, title, priority, status, timestamp) VALUES (?, ?, ?, 'pending', ?)", (user_id, title.strip(), p_clean, datetime.now().strftime("%Y-%m-%d %I:%M %p")))
         conn.commit()
         conn.close()
         return f"System message: Task registered securely! Locked '{title}' into your backlog with [{p_clean.upper()}] priority."
@@ -449,15 +325,12 @@ def get_task_matrix(user_id: str, **kwargs) -> str:
         cursor.execute("SELECT title, priority, status FROM tasks WHERE user_id = ? AND status = 'pending'", (user_id,))
         rows = cursor.fetchall()
         conn.close()
-        
         if not rows:
             return f"System message: Your workspace task board is clear! Great job, {user_id}."
-            
         matrix = {"high": [], "medium": [], "low": []}
         for title, priority, status in rows:
             if priority in matrix:
                 matrix[priority].append(title)
-                
         output = [f"📋 Production Workspace Kanban Priority Matrix [{user_id}]:"]
         for level in ["high", "medium", "low"]:
             output.append(f"\n⚡ {level.upper()} PRIORITY BACKLOG:")
@@ -473,10 +346,7 @@ def log_user_action(action: str, user_id: str, **kwargs) -> str:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO audit_logs (user_id, action, timestamp) VALUES (?, ?, ?)",
-            (user_id, action.strip(), datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"))
-        )
+        cursor.execute("INSERT INTO audit_logs (user_id, action, timestamp) VALUES (?, ?, ?)", (user_id, action.strip(), datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")))
         conn.commit()
         conn.close()
         return f"System message: Event telemetry streamed to compliance index row for '{user_id}'."
@@ -490,10 +360,8 @@ def get_audit_trail(user_id: str, **kwargs) -> str:
         cursor.execute("SELECT action, timestamp FROM audit_logs WHERE user_id = ? ORDER BY id DESC LIMIT 15", (user_id,))
         rows = cursor.fetchall()
         conn.close()
-        
         if not rows:
             return f"System message: System telemetry records are empty for profile target token context: '{user_id}'."
-            
         feed = [f"🔒 Platform Security Compliance Audit Trail Index Feed [{user_id}]:"]
         for action, t_stamp in rows:
             feed.append(f"  * [{t_stamp}] - {action}")
@@ -519,7 +387,6 @@ def list_system_backups(**kwargs) -> str:
         backup_files = [f for f in files if f.startswith("backup_aira_") and f.endswith(".db")]
         if not backup_files:
             return "System message: Cold-storage recovery vault is empty. No backup logs registered."
-            
         report = ["📂 Discovered System Recovery Restore Point Nodes:"]
         for bf in sorted(backup_files, reverse=True):
             file_size = os.path.getsize(os.path.join(BACKUP_DIR, bf)) / 1024
@@ -540,20 +407,8 @@ def get_hardware_status(**kwargs) -> str:
 
 def launch_app(app_name: str, **kwargs) -> str:
     try:
-        app_lookup = {
-            "notepad": "notepad.exe", "calculator": "calc.exe", "paint": "mspaint.exe",
-            "task_manager": "taskmgr.exe", "chrome": "chrome.exe", "vs_code": "code",
-            "snipping_tool": "snippingtool.exe", "settings": "ms-settings:",
-            "whatsapp": "whatsapp:", "camera": "microsoft.windows.camera:", "clock": "ms-clock:"
-        }
+        app_lookup = {"notepad": "notepad.exe", "calculator": "calc.exe", "paint": "mspaint.exe", "task_manager": "taskmgr.exe", "chrome": "chrome.exe", "vs_code": "code"}
         target_name = app_name.lower().strip()
-        if "claude" in target_name:
-            try:
-                os.startfile("claude.exe")
-                return "System message: Successfully deployed native Claude desktop application."
-            except Exception:
-                webbrowser.open("https://claude.ai")
-                return "System message: Local shortcut unavailable. Launched Claude AI via browser."
         if target_name in app_lookup:
             os.startfile(app_lookup[target_name])
             return f"System message: Successfully launched application process for '{target_name}'."
@@ -564,12 +419,7 @@ def launch_app(app_name: str, **kwargs) -> str:
 def kill_app_process(app_name: str, **kwargs) -> str:
     try:
         target = app_name.lower().strip()
-        slug_map = {
-            "chrome": "chrome.exe", "notepad": "notepad.exe", "calculator": "calc.exe",
-            "vscode": "code.exe", "vs code": "code.exe", "paint": "mspaint.exe"
-        }
-        process_target = slug_map.get(target, target if target.endswith(".exe") else f"{target}.exe")
-        
+        process_target = target if target.endswith(".exe") else f"{target}.exe"
         killed_count = 0
         for proc in psutil.process_iter(['name']):
             try:
@@ -578,10 +428,9 @@ def kill_app_process(app_name: str, **kwargs) -> str:
                     killed_count += 1
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-                
         if killed_count > 0:
             return f"System message: Successfully terminated {killed_count} running instance(s) of '{process_target}'."
-        return f"System message: Process target execution scan completed. Zero instances of '{process_target}' are running."
+        return f"System message: Process target scan completed. Zero instances running."
     except Exception as e:
         return f"System Error: Process slayer pipeline failed: {e}"
 
@@ -589,10 +438,7 @@ def save_profile_fact(fact_key: str, fact_value: str, user_id: str, **kwargs) ->
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO profile_memory (user_id, fact_key, fact_value) VALUES (?, ?, ?)",
-            (user_id, fact_key.lower().strip(), fact_value.strip())
-        )
+        cursor.execute("INSERT OR REPLACE INTO profile_memory (user_id, fact_key, fact_value) VALUES (?, ?, ?)", (user_id, fact_key.lower().strip(), fact_value.strip()))
         conn.commit()
         conn.close()
         return f"System message: Secure long-term row memory synchronized: '{fact_key}' = '{fact_value}'."
@@ -606,9 +452,8 @@ def read_profile_facts(user_id: str, **kwargs) -> str:
         cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
         conn.close()
-        
         if not rows:
-            return f"System message: Long-term configuration metadata registry map is empty for owner footprint Context: '{user_id}'."
+            return f"System message: Long-term profile metadata registry map is empty for owner context: '{user_id}'."
         return f"Long-Term Cloud Database Facts [{user_id}]:\n" + "\n".join([f"- {k.title()}: {v}" for k, v in rows])
     except Exception as e:
         return f"System Error: Failed to extract row-isolated profile arrays: {e}"
@@ -618,10 +463,7 @@ def add_deadline(event_name: str, target_date: str, user_id: str, **kwargs) -> s
         datetime.strptime(target_date.strip(), "%Y-%m-%d")
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO deadlines (user_id, event_name, target_date) VALUES (?, ?, ?)",
-            (user_id, event_name.strip(), target_date.strip())
-        )
+        cursor.execute("INSERT OR REPLACE INTO deadlines (user_id, event_name, target_date) VALUES (?, ?, ?)", (user_id, event_name.strip(), target_date.strip()))
         conn.commit()
         conn.close()
         return f"System message: Dynamic target date locked successfully for '{event_name}' on {target_date}."
@@ -637,10 +479,8 @@ def get_countdown_alerts(user_id: str, **kwargs) -> str:
         cursor.execute("SELECT event_name, target_date FROM deadlines WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
         conn.close()
-        
         if not rows:
             return f"System message: No milestone tracking metrics registered for account row isolation: '{user_id}'."
-            
         today = datetime.now().date()
         countdown_report = [f"Live Target Countdown Registers [{user_id}]:"]
         for event, date_str in rows:
@@ -680,8 +520,6 @@ def trigger_cloud_integration(endpoint_url: str, payload_json_string: str, **kwa
     except Exception as e:
         return f"System Error: Cloud integration failed: {e}"
 
-
-# Scalable Multi-Tenant Safe Function Core Registries Pointer Dictionary
 tool_registry = {
     "open_website": open_website, "get_current_time": get_current_time, "get_current_date": get_current_date,
     "list_files": list_files, "create_file": create_file, "create_folder": create_folder,
@@ -697,7 +535,6 @@ tool_registry = {
     "trigger_cloud_integration": trigger_cloud_integration
 }
 
-# Dynamic Native AI Agent Tool Blueprints Schema Layout Array
 aira_tools = [
     {"type": "function", "function": {"name": "open_website", "description": "Opens any web URL in the browser.", "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
     {"type": "function", "function": {"name": "get_current_time", "description": "Returns current local time.", "parameters": {"type": "object", "properties": {}, "required": []}}},
@@ -708,26 +545,20 @@ aira_tools = [
     {"type": "function", "function": {"name": "rename_file", "description": "Renames existing file or folder.", "parameters": {"type": "object", "properties": {"old_name": {"type": "string"}, "new_name": {"type": "string"}}, "required": ["old_name", "new_name"]}}},
     {"type": "function", "function": {"name": "delete_file", "description": "Deletes file from directory root completely.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
     {"type": "function", "function": {"name": "read_file", "description": "Reads text strings stored in target file.", "parameters": {"type": "object", "properties": {"filename": {"type": "string"}}, "required": ["filename"]}}},
-    {"type": "function", "function": {"name": "read_pdf", "description": "Extracts text content from a local PDF document file for analysis or summarization.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]}}},
-    {"type": "function", "function": {"name": "log_expense", "description": "Logs an expense entry with a numeric cost value, strict metadata category, and text tracking details.", "parameters": {"type": "object", "properties": {"amount": {"type": "number"}, "category": {"type": "string"}, "description": {"type": "string"}}, "required": ["amount", "category", "description"]}}},
-    {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a tracking summary parsing total outflux calculations and categorical itemized ledgers.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "create_workspace_note", "description": "Saves a text knowledge block record directly into the secure cloud database note vault with a search title.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"}}, "required": ["title", "content"]}}},
-    {"type": "function", "function": {"name": "search_workspace_notes", "description": "Scans your row-isolated relational database notes vault for matching title or content search keywords.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
-    {"type": "function", "function": {"name": "create_task", "description": "Registers a new task execution ticket card into your multi-tenant workspace project backlog board.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "priority": {"type": "string", "description": "Must be 'high', 'medium', or 'low'"}}, "required": ["title", "priority"]}}},
-    {"type": "function", "function": {"name": "get_task_matrix", "description": "Pulls your row-isolated task backlog and organizes active cards into a clean priority matrix board layout.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "log_user_action", "description": "Appends a transactional tracking parameter description into the unalterable system metrics history log table.", "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]}}},
-    {"type": "function", "function": {"name": "get_audit_trail", "description": "Pulls a chronological context log feed tracking all core platform interactions associated with your unique account footprint.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "trigger_database_backup", "description": "Triggers an instant, hot point-in-time duplicate safety copy snapshot of the live data files.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "list_system_backups", "description": "Queries the isolated cold storage archives folder to index all available recovery node points.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "read_pdf", "description": "Extracts text content from a local PDF document file.", "parameters": {"type": "object", "properties": {"file_path": {"type": "string"}}, "required": ["file_path"]}}},
+    {"type": "function", "function": {"name": "log_expense", "description": "Logs an expense entry with a numeric cost value.", "parameters": {"type": "object", "properties": {"amount": {"type": "number"}, "category": {"type": "string"}, "description": {"type": "string"}}, "required": ["amount", "category", "description"]}}},
+    {"type": "function", "function": {"name": "get_financial_report", "description": "Compiles a data summary tracking spending budgets.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "create_workspace_note", "description": "Saves a text knowledge block record directly into the note vault.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"}}, "required": ["title", "content"]}}},
+    {"type": "function", "function": {"name": "search_workspace_notes", "description": "Scans your row-isolated notes vault for keywords.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "create_task", "description": "Registers a new task card into your workspace project backlog board.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "priority": {"type": "string"}}, "required": ["title", "priority"]}}},
+    {"type": "function", "function": {"name": "get_task_matrix", "description": "Pulls your row-isolated task backlog.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "log_user_action", "description": "Appends a transactional tracking parameter description into audit trail logs.", "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]}}},
+    {"type": "function", "function": {"name": "get_audit_trail", "description": "Pulls a chronological context log feed tracking platform interactions.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "trigger_database_backup", "description": "Triggers an instant snapshot copy of the live data files.", "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {"name": "list_system_backups", "description": "Queries the archives folder to index available recovery points.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "get_hardware_status", "description": "Pulls machine hardware usage diagnostics.", "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {"name": "launch_app", "description": "Launches local native system application programs.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
-    {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process or application by its name string.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}},
-    {"type": "function", "function": {"name": "save_profile_fact", "description": "Saves fact parameters to user long-term memory file.", "parameters": {"type": "object", "properties": {"fact_key": {"type": "string"}, "fact_value": {"type": "string"}}, "required": ["fact_key", "fact_value"]}}},
-    {"type": "function", "function": {"name": "read_profile_facts", "description": "Reads long-term user context profile database facts.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "add_deadline", "description": "Saves an upcoming milestone tracker calendar date.", "parameters": {"type": "object", "properties": {"event_name": {"type": "string"}, "target_date": {"type": "string"}}, "required": ["event_name", "target_date"]}}},
-    {"type": "function", "function": {"name": "get_countdown_alerts", "description": "Runs calendar timeline tracking analysis.", "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {"name": "search_internet", "description": "Browses open web index search engines engines dynamically for live data.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
-    {"type": "function", "function": {"name": "trigger_cloud_integration", "description": "Transmits JSON parameters dynamically to external cloud webhooks.", "parameters": {"type": "object", "properties": {"endpoint_url": {"type": "string"}, "payload_json_string": {"type": "string"}}, "required": ["endpoint_url", "payload_json_string"]}}}
+    {"type": "function", "function": {"name": "kill_app_process", "description": "Forcefully terminates a running desktop process.", "parameters": {"type": "object", "properties": {"app_name": {"type": "string"}}, "required": ["app_name"]}}}
 ]
 
 # =====================================================================
@@ -739,30 +570,22 @@ def fetch_isolated_user_history(user_id: str):
     cursor = conn.cursor()
     cursor.execute("SELECT role, content, tool_calls FROM history WHERE user_id = ? ORDER BY id ASC", (user_id,))
     rows = cursor.fetchall()
-    
     cursor.execute("SELECT fact_key, fact_value FROM profile_memory WHERE user_id = ?", (user_id,))
     facts = cursor.fetchall()
     conn.close()
     
     profile_ctx = ""
     if facts:
-        profile_ctx = "\nAuthenticated occupant row metadata properties:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in facts])
+        profile_ctx = "\nUser Profile Facts:\n" + "\n".join([f"{k.upper()}: {v}" for k, v in facts])
         
     system_prompt_string = (
-        "You are AIRA, a professional, highly capable personal AI assistant and custom OS engine built by Shadik. "
-        "Respond directly and concisely with adaptive candor and a touch of wit. "
-        f"You are running inside a production cloud web architecture. Active session user token: {user_id}. {profile_ctx}\n\n"
-        "SAAS TELEMETRY RULES:\n"
-        "1. Chat completely naturally, casually, and intelligently when answering conversational prompts.\n"
-        "2. Natively invoke structural backup recovery tools autonomously whenever requested by user intents.\n"
-        "3. You operate within a strict multi-tenant framework. Do not pollute overlapping cross-tenant session arrays.\n"
-        "4. Never guess system stats, times, or countdown data. Always call the tool, read the payload, and present the result clearly."
+        "You are AIRA, a professional, highly capable assistant. "
+        f"Active user token footprint: {user_id}. {profile_ctx}\n\n"
+        "Invoke tools autonomously whenever requested by intents. Secure multi-tenant architecture."
     )
-    
     baseline_prompt = [{"role": "system", "content": system_prompt_string}]
     if not rows:
         return baseline_prompt
-        
     history = list(baseline_prompt)
     for role, content, tc_json in rows[-20:]:
         msg = {"role": role, "content": content}
@@ -771,43 +594,19 @@ def fetch_isolated_user_history(user_id: str):
         history.append(msg)
     return history
 
-def log_database_message(user_id: str, role: str, content: str, tool_calls=None):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        tc_payload = json.dumps(tool_calls) if tool_calls else None
-        cursor.execute(
-            "INSERT INTO history (user_id, role, content, tool_calls, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (user_id, role, content, tc_payload, datetime.now().isoformat())
-        )
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"⚠️ History tracking log anomaly detected: {e}")
-
 def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
-    """Processes message requests across strictly isolated user row context boundaries."""
-    # SECURITY INTERCEPTOR 1: Rate Limiting
     if not check_rate_limit_throttle(session_user_id, max_requests=5, window_seconds=60):
-        return "⚠️ AIRA Core Firewall Notice: Rate Limit Triggered! Access restricted to 5 tasks per minute to secure system threads."
-
-    # SECURITY INTERCEPTOR 2: Inbound Input Sanitizer Layer
+        return "⚠️ AIRA Core Firewall Notice: Rate Limit Triggered! Access restricted to 5 tasks per minute."
     sanitized_text = sanitize_input_string(incoming_text)
-
     history_array = fetch_isolated_user_history(session_user_id)
     history_array.append({"role": "user", "content": sanitized_text})
     log_database_message(session_user_id, "user", sanitized_text)
     
     try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant", messages=history_array, tools=aira_tools, tool_choice="auto"
-        )
+        response = client.chat.completions.create(model="llama-3.1-8b-instant", messages=history_array, tools=aira_tools, tool_choice="auto")
         msg = response.choices[0].message
         if msg.tool_calls:
-            serialized_calls = []
-            for tc in msg.tool_calls:
-                serialized_calls.append({"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}})
-            
+            serialized_calls = [{"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in msg.tool_calls]
             history_array.append({"role": "assistant", "content": msg.content, "tool_calls": serialized_calls})
             log_database_message(session_user_id, "assistant", msg.content or "", serialized_calls)
             
@@ -815,61 +614,93 @@ def execute_brain_inference(incoming_text: str, session_user_id: str) -> str:
                 name = tc.function.name
                 try: args = json.loads(tc.function.arguments) if tc.function.arguments else {}
                 except Exception: args = {}
-                
-                if not isinstance(args, dict): 
-                    args = {}
-                
                 args["user_id"] = session_user_id
-                    
                 if name in tool_registry:
                     res = tool_registry[name](**args)
                     history_array.append({"role": "tool", "tool_call_id": tc.id, "name": name, "content": res})
                     log_database_message(session_user_id, "tool", res)
-            
             final_res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=history_array)
             reply = final_res.choices[0].message.content
         else:
             reply = msg.content
-            
         if reply:
             log_database_message(session_user_id, "assistant", reply)
             return reply
-        return "AIRA Core Node: Transaction context isolated successfully."
+        return "Processed successfully."
     except Exception as e:
-        return f"AIRA Relational Isolation Layer Exception Error: {e}"
+        return f"AIRA Inference Core Error: {e}"
 
-def running_multiplatform_listener_loop():
-    """Asynchronous background server daemon thread scanning cloud vectors for mobile inputs."""
+def log_database_message(user_id: str, role: str, content: str, tool_calls=None):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        tc_payload = json.dumps(tool_calls) if tool_calls else None
+        cursor.execute("INSERT INTO history (user_id, role, content, tool_calls, timestamp) VALUES (?, ?, ?, ?, ?)", (user_id, role, content, tc_payload, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+# =====================================================================
+# 📲 PLATFORM ASYNC NETWORKING LISTENERS (TELEGRAM & DISCORD NODES)
+# =====================================================================
+
+def running_telegram_listener_loop():
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-        print("🪐 [Level 26 Firewall Engine] Telegram Listener Standby Mode: Token missing.")
+        print("🪐 [Telegram Node] Standby Mode: Token missing.")
         return
-        
-    print("🚀 [Level 26 Firewall Engine] Listening to Mobile Cloud Bot Vectors...")
+    print("🚀 [Telegram Node] Sync Complete. Listening...")
     base_url = f"https://api.telegram.org/bot{bot_token}"
     last_update_id = 0
-    
     while True:
         try:
-            url = f"{base_url}/getUpdates?offset={last_update_id + 1}&timeout=5"
-            resp = requests.get(url, timeout=10).json()
+            resp = requests.get(f"{base_url}/getUpdates?offset={last_update_id + 1}&timeout=5", timeout=10).json()
             if "result" in resp:
                 for update in resp["result"]:
                     last_update_id = update["update_id"]
                     if "message" in update and "text" in update["message"]:
                         chat_id = str(update["message"]["chat"]["id"])
                         user_msg = update["message"]["text"]
-                        
-                        active_scoped_user = f"telegram_{chat_id}"
-                        print(f"📲 Production Security Data Node Caught: '{user_msg}' from account '{active_scoped_user}'")
-                        
-                        aira_reply = execute_brain_inference(user_msg, session_user_id=active_scoped_user)
-                        
-                        send_url = "/sendMessage"
-                        requests.post(f"{base_url}{send_url}", json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
+                        active_user = f"telegram_{chat_id}"
+                        print(f"📲 [Telegram] Inbound Packet Frame from account '{active_user}'")
+                        aira_reply = execute_brain_inference(user_msg, session_user_id=active_user)
+                        requests.post(f"{base_url}/sendMessage", json={"chat_id": chat_id, "text": aira_reply}, timeout=5)
         except Exception:
             pass
         time.sleep(1)
+
+def running_discord_client_node():
+    discord_token = os.getenv("DISCORD_BOT_TOKEN")
+    if not discord_token or discord_token == "YOUR_DISCORD_TOKEN_HERE":
+        print("🪐 [Discord Node] Standby Mode: DISCORD_BOT_TOKEN environment variable not set inside .env.")
+        return
+        
+    intents = discord.Intents.default()
+    intents.message_content = True
+    bot = commands.Bot(command_prefix="!", intents=intents)
+
+    @bot.event
+    async def on_ready():
+        print(f"🚀 [Discord Node] Client logged in successfully as user: {bot.user.name}")
+
+    @bot.event
+    async def on_message(message):
+        if message.author == bot.user:
+            return
+        # Bind context to explicit row-isolated Discord identifier row tokens
+        active_user = f"discord_{message.author.id}"
+        print(f"📲 [Discord Packet Signature Core] Inbound string caught from footprint '{active_user}'")
+        
+        async with message.channel.typing():
+            reply = execute_brain_inference(message.content, session_user_id=active_user)
+            
+        await message.channel.send(reply)
+
+    try:
+        bot.run(discord_token)
+    except Exception as e:
+        print(f"⚠️ Discord Connection dropped or blocked: {e}")
 
 # =====================================================================
 # 🌐 FASTAPI PRODUCTION SERVER ENDPOINTS INTERFACE
@@ -877,70 +708,51 @@ def running_multiplatform_listener_loop():
 
 @app.get("/")
 async def serve_root_api_healthcheck():
-    return {
-        "status": "online",
-        "engine": "AIRA OS SaaS Protected Security Core",
-        "timestamp": datetime.now().isoformat(),
-        "sandbox_root": WORKSPACE_ROOT,
-        "firewall_rules": "rate_limiting_and_sanitization_active",
-        "telemetry": {
-            "cpu_utilization_percent": psutil.cpu_percent(),
-            "memory_utilization_percent": psutil.virtual_memory().percent
-        }
-    }
+    return {"status": "online", "engine": "AIRA Cross-Platform SaaS Core", "timestamp": datetime.now().isoformat()}
 
 @app.post("/auth/signup")
 async def register_saas_user(payload: UserAuthPayload):
-    # Scrub auth payload parameters fields for structural safety strings
-    username_cleaned = sanitize_input_string(payload.username).lower().strip()
+    username_cleaned = payload.username.strip().lower()
     if not username_cleaned or not payload.password:
-        raise HTTPException(status_code=400, detail="Signup verification parameter validation failed.")
+        raise HTTPException(status_code=400, detail="Signup fields verification failed.")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users WHERE username = ?", (username_cleaned,))
     if cursor.fetchone():
         conn.close()
-        raise HTTPException(status_code=400, detail="Username selection already taken.")
+        raise HTTPException(status_code=400, detail="Username already registered.")
     generated_user_id = f"user_{int(time.time())}"
-    hashed_pw = hash_password(payload.password)
-    cursor.execute("INSERT INTO users (user_id, username, hashed_password, created_at) VALUES (?, ?, ?, ?)", (generated_user_id, username_cleaned, hashed_pw, datetime.now().isoformat()))
+    cursor.execute("INSERT INTO users (user_id, username, hashed_password, created_at) VALUES (?, ?, ?, ?)", (generated_user_id, username_cleaned, hash_password(payload.password), datetime.now().isoformat()))
     conn.commit()
     conn.close()
-    return {"status": "success", "message": "Account initialized.", "assigned_user_id": generated_user_id}
+    return {"status": "success", "assigned_user_id": generated_user_id}
 
 @app.post("/auth/login")
 async def login_saas_user(payload: UserAuthPayload):
-    username_cleaned = sanitize_input_string(payload.username).lower().strip()
+    username_cleaned = payload.username.strip().lower()
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, hashed_password FROM users WHERE username = ?", (username_cleaned,))
     record = cursor.fetchone()
     conn.close()
-    if not record:
-        raise HTTPException(status_code=401, detail="Invalid credential keys.")
-    user_id, stored_hashed_password = record
-    if hash_password(payload.password) != stored_hashed_password:
-        raise HTTPException(status_code=401, detail="Password validation signature mismatch.")
-    return {"status": "authenticated", "authenticated_user_id": user_id}
+    if not record or hash_password(payload.password) != record[1]:
+        raise HTTPException(status_code=401, detail="Invalid credential records.")
+    return {"status": "authenticated", "authenticated_user_id": record[0]}
 
 @app.post("/chat")
 async def serve_inference_endpoint(payload: ChatPayload):
     try:
         target_user = sanitize_input_string(payload.user_id).strip().lower()
-        user_message = payload.message.strip()
-        if not target_user or not user_message:
-            raise HTTPException(status_code=400, detail="Inbound data packet missing structural validation properties.")
-        agent_reply = execute_brain_inference(user_message, session_user_id=target_user)
-        return {"sender": "AIRA", "response": agent_reply, "user_context_bound": target_user, "timestamp": datetime.now().isoformat()}
+        agent_reply = execute_brain_inference(payload.message.strip(), session_user_id=target_user)
+        return {"sender": "AIRA", "response": agent_reply, "user_context_bound": target_user}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"API Engine Isolated Database Exception: {e}"})
+        return JSONResponse(status_code=500, content={"error": f"Database processing anomaly: {e}"})
 
 if __name__ == "__main__":
-    # Start the multi-tenant message parser background processing loop
-    threading.Thread(target=running_multiplatform_listener_loop, daemon=True).start()
+    threading.Thread(target=running_telegram_listener_loop, daemon=True).start()
+    threading.Thread(target=running_discord_client_node, daemon=True).start()
     
-    # Run the production API server engine node
     import uvicorn
     cloud_assigned_port = int(os.getenv("PORT", 8000))
-    print(f"⚡ Deploying Production-Optimized Shielded Server on Port {cloud_assigned_port}...")
+    print(f"⚡ Deploying Cross-Platform Multi-Tenant Production Engine Core on Port {cloud_assigned_port}...")
     uvicorn.run(app, host="0.0.0.0", port=cloud_assigned_port)
