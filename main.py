@@ -1,23 +1,31 @@
+import sys
+try:
+    import pyaudiowpatch as pyaudio
+    sys.modules['pyaudio'] = pyaudio
+except ImportError:
+    pass
+
 import asyncio
 import os
 import aiohttp
 import webbrowser
 import subprocess
 import sqlite3
+import psutil
+import pyttsx3
+import speech_recognition as sr  
+import threading                
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-# 📦 DEFENSIVE DATA BLUEPRINT (Specifying a default value prevents 422 validation crashes!)
 class ChatPayload(BaseModel):
     message: str
-    user: str = "Shaik Shadik"  # Fallback identity parameter defaults to the Creator
+    user: str = "Shaik Shadik"
 
-# Initialize your core network engine app
 app = FastAPI(title="AIRA Core AI Network Node")
 
-# 🛡️ THE CORS HANDSHAKE UNLOCK NODE
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,6 +36,71 @@ app.add_middleware(
 
 DB_FILE = "aira_cloud_node.db"
 NOTE_FILE = "aira_notes.txt"
+
+def execute_native_voice_stream(text_to_speak: str):
+    try:
+        clean_speech = text_to_speak.replace("**", "").replace("`", "").replace("🚀", "").replace("📊", "")
+        voice_engine = pyttsx3.init()
+        voice_engine.setProperty('rate', 180)
+        voice_engine.say(clean_speech)
+        voice_engine.runAndWait()
+    except Exception as e:
+        print(f"❌ [Voice Engine Error] {str(e)}")
+
+# 🎙️ CONTINUOUS BACKGROUND LISTENING CORE (FORGIVING TRANSLATION SCHEME)
+def continuous_ambient_ear_loop():
+    recognizer = sr.Recognizer()
+    microphone = sr.Microphone()
+    
+    try:
+        with microphone as source:
+            recognizer.adjust_for_ambient_noise(source, duration=1)
+            print("\n📡 [Voice Node] Ambient ears armed and calibrated. Listening for 'Hey AIRA'...")
+            
+            while True:
+                try:
+                    audio_packet = recognizer.listen(source, phrase_time_limit=4)
+                    spoken_text = recognizer.recognize_google(audio_packet).lower().strip()
+                    
+                    print(f"👂 [Audio Signal Detected]: '{spoken_text}'")
+                    
+                    # 🪐 THE PHONETIC WAKE POOL: Catches all common spelling guesses from Google
+                    wake_variants = ["aira", "ira", "hair", "era", "hey ira", "hey aira"]
+                    is_wake_hit = any(variant in spoken_text for variant in wake_variants)
+                    
+                    # Direct action overrides (Backup plan if wake word is completely cut off)
+                    is_direct_action = any(cmd in spoken_text for cmd in ["youtube", "status", "hardware", "whatsapp"])
+                    
+                    if is_wake_hit or is_direct_action:
+                        print("🔥 [WAKE PROTOCOL] Target trigger intercepted successfully!")
+                        
+                        if "status" in spoken_text or "hardware" in spoken_text:
+                            cpu_load = psutil.cpu_percent(interval=None)
+                            ram_used = psutil.virtual_memory().percent
+                            report = f"Live hardware status update: CPU load is at {cpu_load} percent, and memory utilization is at {ram_used} percent, Shadik."
+                            print(f"🤖 AIRA Spoken Reply: {report}")
+                            execute_native_voice_stream(report)
+                            
+                        elif "youtube" in spoken_text:
+                            print("🚀 Launching YouTube application loop!")
+                            execute_native_voice_stream("Opening YouTube right away, Shadik.")
+                            webbrowser.open("https://www.youtube.com")
+                            
+                        elif "whatsapp" in spoken_text:
+                            print("💬 Launching WhatsApp communications dashboard!")
+                            execute_native_voice_stream("Opening WhatsApp Web console, Shadik.")
+                            webbrowser.open("https://web.whatsapp.com")
+                            
+                        else:
+                            if not is_direct_action:
+                                execute_native_voice_stream("Yes Shadik, I am online. Standing by for voice actions.")
+                                
+                except sr.UnknownValueError:
+                    pass
+                except Exception as e:
+                    pass
+    except Exception as main_err:
+        print(f"❌ [Voice Hardware Matrix Error]: {str(main_err)}")
 
 def init_memory_database():
     conn = sqlite3.connect(DB_FILE)
@@ -58,11 +131,7 @@ def fetch_recent_context_history(limit=6):
     cursor.execute("SELECT role, content FROM system_chat_logs ORDER BY id DESC LIMIT ?", (limit,))
     rows = cursor.fetchall()
     conn.close()
-    
-    formatted_history = []
-    for role, content in reversed(rows):
-        formatted_history.append({"role": role, "content": content})
-    return formatted_history
+    return [{"role": role, "content": content} for role, content in reversed(rows)]
 
 def fetch_groq_api_key():
     if os.path.exists(".env"):
@@ -72,52 +141,37 @@ def fetch_groq_api_key():
                     return line.split("=")[1].strip().strip('"').strip("'")
     return os.getenv("GROQ_API_KEY", "")
 
-# 📡 THE LIVE CHAT ROUTING INTERFACE WITH AUTONOMOUS FIREWALL PROTOCOLS
 @app.post("/chat")
 async def handle_flutter_chat(payload: ChatPayload):
     user_instruction = payload.message
     sender_name = payload.user
     
     print(f"\n📲 [Inbound Frame] User: '{sender_name}' | Prompt: '{user_instruction}'")
-    
     clean_cmd = user_instruction.lower().strip().replace('"', '').replace("'", "")
     
-    # ⚡ AUTOMATION INTERCEPT CLUSTERS
-    automation_triggers = ["open youtube", "open google", "open calculator", "open calc", "create note", "write note"]
-    is_trigger_word_hit = any(trigger in clean_cmd for trigger in automation_triggers)
-    
-    if is_trigger_word_hit:
-        # Check authorization values
-        if sender_name != "Shaik Shadik":
-            print(f"🚨 [Security Breach Intercepted] Unauthorized occupant '{sender_name}' blocked from system controls!")
-            return {"response": f"⚠️ Access Denied. User identity verification failed. Hardware command block active. You do not possess clearance protocols to control this local host laptop node."}
+    if "system status" in clean_cmd:
+        cpu_load = psutil.cpu_percent(interval=None)
+        ram_used_pct = psutil.virtual_memory().percent
+        battery_metrics = psutil.sensors_battery()
+        battery_pct = f"{battery_metrics.percent}%" if battery_metrics else "Grid Power Connected"
         
-        # 🟢 AUTHORIZED PASSED
-        if "open youtube" in clean_cmd:
-            webbrowser.open("https://www.youtube.com")
-            return {"response": "🚀 Identity Confirmed. System override active! Launching YouTube engine on your primary monitor screen, Shadik."}
-        elif "open google" in clean_cmd:
-            webbrowser.open("https://www.google.com")
-            return {"response": "🌐 Identity Confirmed. System override active! Opening Google navigation dashboard, Shadik."}
-        elif "open calculator" in clean_cmd or "open calc" in clean_cmd:
-            try:
-                subprocess.Popen("calc.exe")
-                return {"response": "🧮 Identity Confirmed. Waking up local Windows utility processor, Shadik."}
-            except Exception as e:
-                return {"response": f"⚠️ Local invocation failure: {str(e)}"}
-        elif "create note" in clean_cmd or "write note" in clean_cmd:
-            raw_note = user_instruction.replace("create note", "", 1).replace("Create note", "", 1).strip()
-            with open(NOTE_FILE, "w", encoding="utf-8") as f:
-                f.write(raw_note)
-            return {"response": f"📝 Identity Confirmed. Secure filesystem sector updated: wrote your data packet to '{NOTE_FILE}' safely."}
+        hardware_health_report = (
+            f"📊 **AIRA Live Diagnostic Performance Matrix:**\n\n"
+            f"💻 **CPU Utilization Load:** {cpu_load}%\n"
+            f"🧠 **System RAM Allocation:** {ram_used_pct}%\n"
+            f"🔋 **Laptop Battery Storage Energy:** {battery_pct}\n\n"
+            f"🟢 Framework Status: Systems nominal, Creator Shadik."
+        )
+        voice_summary = f"System metrics scanned. CPU load is at {cpu_load} percent. All systems nominal, Shadik."
+        asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, voice_summary))
+        return {"response": hardware_health_report}
 
-    # Standard database log tracking routine
     save_message_to_history("user", user_instruction, sender_name)
     chat_context = fetch_recent_context_history(limit=6)
 
     system_instruction = {
         "role": "system", 
-        "content": "You are AIRA, a premium minimalist dark-aesthetic system core assistant created by Shadik. Respond concisely, professionally, and sharply."
+        "content": "You are AIRA, a premium minimalist dark-aesthetic system core assistant created by Shadik."
     }
     
     messages_payload = [system_instruction] + chat_context
@@ -133,16 +187,21 @@ async def handle_flutter_chat(payload: ChatPayload):
                     data = await response.json()
                     aira_ai_reply = data["choices"][0]["message"]["content"]
                     save_message_to_history("assistant", aira_ai_reply, "AIRA Engine")
+                    asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, aira_ai_reply))
                     return {"response": aira_ai_reply}
                 else:
-                    return {"response": f"⚠️ API Core Connection Breakdown: Status {response.status}"}
+                    return {"response": f"⚠️ API Connection Status Breakdown: {response.status}"}
         except Exception as e:
-            return {"response": f"📡 Network transmission timeout frame: {str(e)}"}
+            return {"response": f"📡 Network transmission timeout: {str(e)}"}
 
 @app.on_event("startup")
 async def app_startup_sequence():
     init_memory_database()
-    print("⚡ Deploying Shielded Server Infrastructure with Hot-Reload Engine on Port 8000...")
+    print("⚡ Deploying Voiced Server Infrastructure with Background Ear Matrix...")
+    
+    listener_thread = threading.Thread(target=continuous_ambient_ear_loop, daemon=True)
+    listener_thread.start()
+    
     asyncio.create_task(activate_background_bot_nodes())
 
 async def activate_background_bot_nodes():
