@@ -6,6 +6,14 @@ try:
 except ImportError:
     pass
 
+# --- EXTENSIONS LINKED HERE ---
+import database
+from system_control import SystemController
+from profile_manager import ProfileManager
+from app_launcher import AppLauncher
+from note_manager import NoteManager
+# ----------------------------------
+
 import asyncio
 import os
 import aiohttp
@@ -37,6 +45,12 @@ app.add_middleware(
 
 DB_FILE = "aira_cloud_node.db"
 NOTE_FILE = "aira_notes.txt"
+
+# Initialize our custom hardware automation clusters
+sys_control = SystemController()
+profile_mgr = ProfileManager()
+launcher = AppLauncher()
+note_mgr = NoteManager(NOTE_FILE)
 
 def execute_native_voice_stream(text_to_speak: str):
     try:
@@ -150,6 +164,7 @@ async def handle_flutter_chat(payload: ChatPayload):
     print(f"\n📲 [Inbound Frame] User: '{sender_name}' | Prompt: '{user_instruction}'")
     clean_cmd = user_instruction.lower().strip().replace('"', '').replace("'", "")
     
+    # --- INTERCEPT 1: SYSTEM HARDWARE METRICS STATUS ---
     if "system status" in clean_cmd:
         cpu_load = psutil.cpu_percent(interval=None)
         ram_used_pct = psutil.virtual_memory().percent
@@ -167,6 +182,54 @@ async def handle_flutter_chat(payload: ChatPayload):
         asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, voice_summary))
         return {"response": hardware_health_report}
 
+    # --- INTERCEPT 2: NATIVE WINDOWS PC REMOTE CONTROL LOCK HOOK ---
+    if "lock" in clean_cmd and ("pc" in clean_cmd or "screen" in clean_cmd or "laptop" in clean_cmd):
+        execution_result = sys_control.execute_action("lock")
+        database.log_interaction_metric(command="lock", module="system_control")
+        asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, "Locking your computer screen immediately, Shadik."))
+        return {"response": f"🔒 **AIRA OS Control Engine:** {execution_result}"}
+
+    # --- INTERCEPT 3: NATIVE WINDOWS PC REMOTE CONTROL SLEEP HOOK ---
+    if "sleep" in clean_cmd and ("pc" in clean_cmd or "laptop" in clean_cmd or "computer" in clean_cmd):
+        execution_result = sys_control.execute_action("sleep")
+        database.log_interaction_metric(command="sleep", module="system_control")
+        asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, "Putting your workstation to sleep, Shadik."))
+        return {"response": f"💤 **AIRA OS Control Engine:** {execution_result}"}
+
+    # --- INTERCEPT 4: APPLICATION LAUNCHER AUTOMATION HOOKS ---
+    if "open" in clean_cmd:
+        for app_nickname in ["chrome", "notepad", "vstext"]:
+            if app_nickname in clean_cmd:
+                execution_result = launcher.launch_program(app_nickname)
+                database.log_interaction_metric(command=f"launch_{app_nickname}", module="app_launcher")
+                asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, f"Opening {app_nickname}, Shadik."))
+                return {"response": f"🚀 **AIRA App Launcher:** {execution_result}"}
+
+    # --- INTERCEPT 5: LONG-TERM MEMORY ENGINE HOOKS ---
+    if clean_cmd.startswith("remember"):
+        fact_to_save = user_instruction[8:].strip()
+        if fact_to_save:
+            execution_result = profile_mgr.remember_user_fact(category="preference", fact=fact_to_save)
+            asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, "Fact logged into long term memory clusters."))
+            return {"response": f"🧠 **AIRA Memory Engine:** {execution_result}"}
+
+    if "show memories" in clean_cmd or "view profile" in clean_cmd:
+        all_memories = profile_mgr.pull_all_memories()
+        return {"response": all_memories}
+
+    # --- INTERCEPT 6: WORKSPACE NOTE SYSTEM HOOKS ---
+    if "read note" in clean_cmd or "workspace note" in clean_cmd:
+        execution_result = note_mgr.read_notes()
+        return {"response": execution_result}
+
+    if clean_cmd.startswith("write note") or clean_cmd.startswith("add note"):
+        note_to_save = user_instruction[10:].strip()
+        if note_to_save:
+            execution_result = note_mgr.write_note(note_to_save)
+            asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, "Note added to workspace."))
+            return {"response": execution_result}
+
+    # If it's not an exact hardware shortcut command, route to Llama-3 via Groq API
     save_message_to_history("user", user_instruction, sender_name)
     chat_context = fetch_recent_context_history(limit=6)
 
@@ -198,6 +261,8 @@ async def handle_flutter_chat(payload: ChatPayload):
 @app.on_event("startup")
 async def app_startup_sequence():
     init_memory_database()
+    database.init_db()
+    
     print("⚡ Deploying Voiced Server Infrastructure with Background Ear Matrix...")
     
     listener_thread = threading.Thread(target=continuous_ambient_ear_loop, daemon=True)
