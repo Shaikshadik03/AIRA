@@ -29,7 +29,8 @@ class SettingsUpdatePayload(BaseModel):
     groq_api_key: str
     theme_accent: str = "Obsidian Slate"
 
-DB_FILE = "aira_cloud_node.db"
+# 💾 UPGRADED DATABASE POINTER: Forces a clean column mapping on Render
+DB_FILE = "aira_cloud_v2.db"
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -62,7 +63,7 @@ def init_cloud_database():
     """)
     conn.commit()
     conn.close()
-    print("💾 [Cloud Core] Database infrastructure mapped cleanly.")
+    print("💾 [Cloud Core] Database infrastructure mapped cleanly with full columns.")
 
 def save_message_to_history(session_id: str, title: str, role: str, content: str, user_identity: str):
     conn = sqlite3.connect(DB_FILE)
@@ -191,7 +192,6 @@ async def clear_all_conversation_logs():
     conn.close()
     return {"status": "success"}
 
-# 🛡️ UPGRADED FAIL-SAFE ROUTE ENGINE: Intercepts all 500 crashes internally
 @app.post("/chat")
 async def handle_flutter_chat(payload: ChatPayload):
     try:
@@ -225,7 +225,6 @@ async def handle_flutter_chat(payload: ChatPayload):
         
         env_key = fetch_active_groq_key()
         
-        # 🛡️ Catch missing API key instantly before requesting Groq
         if not env_key or len(env_key) < 10:
             return {"response": "🔑 **Groq API Key Missing:** Please open the mobile app Sidebar Drawer ➔ System Settings, paste your valid API key, and tap save."}
 
