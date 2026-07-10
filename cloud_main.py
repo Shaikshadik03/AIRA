@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 import shutil
 
-# Data Blueprints for Cloud Transactions
 class RegisterPayload(BaseModel):
     username: str
     email: str
@@ -98,11 +97,9 @@ def fetch_active_groq_key() -> str:
 async def cloud_application_lifespan(app: FastAPI):
     init_cloud_database()
     yield
-    print("🔌 [Shutdown] Cloud matrix detaching.")
 
 app = FastAPI(title="AIRA Cloud Core Gateway", lifespan=cloud_application_lifespan)
 
-# 🌐 CLOUD HEALTH MONITOR ROUTE: Added to verify deployment status on Render hosting systems
 @app.get("/")
 async def cloud_health_check():
     return {"status": "online", "matrix": "AIRA OS SaaS Core Live Node"}
@@ -112,31 +109,25 @@ app.add_middleware(
     allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
 
-# 🔌 TUNNEL CONNECTION REGISTRY
 agent_websocket: WebSocket = None
 pending_futures = {}
 
-# 🎛️ SECURE REVERSE TUNNEL GATEWAY: Keeps communication channel open for your laptop
 @app.websocket("/ws/agent")
 async def agent_tunnel_endpoint(websocket: WebSocket):
     global agent_websocket
     await websocket.accept()
     agent_websocket = websocket
-    print("🔌 [Tunnel Node] Local hardware agent successfully bridged via secure stream link.")
-    
     try:
         while True:
-            # Listens continuously for processed command replies arriving from your laptop
             inbound_payload = await websocket.receive_json()
             cmd_id = inbound_payload.get("id")
             if cmd_id in pending_futures:
                 pending_futures[cmd_id].set_result(inbound_payload.get("result"))
     except WebSocketDisconnect:
-        print("🔌 [Tunnel Node] Local hardware agent detached from stream gate.")
+        pass
     finally:
         agent_websocket = None
 
-# AUTH GATEWAYS
 @app.post("/auth/register")
 async def register_saas_user(payload: RegisterPayload):
     try:
@@ -163,7 +154,6 @@ async def login_saas_user(payload: LoginPayload):
         raise HTTPException(status_code=401, detail="Invalid account credentials.")
     return {"status": "success", "user": {"username": record[0], "email": payload.email.strip().lower()}}
 
-# CHAT CORE FRAMEWORK
 @app.get("/sessions")
 async def get_all_active_sessions():
     conn = sqlite3.connect(DB_FILE)
@@ -201,53 +191,58 @@ async def clear_all_conversation_logs():
     conn.close()
     return {"status": "success"}
 
+# 🛡️ UPGRADED FAIL-SAFE ROUTE ENGINE: Intercepts all 500 crashes internally
 @app.post("/chat")
 async def handle_flutter_chat(payload: ChatPayload):
-    global agent_websocket
-    user_instruction = payload.message
-    sender_name = payload.user
-    sid = payload.session_id
-    title = payload.conversation_title
-    clean_cmd = user_instruction.lower().strip()
-    
-    # 📡 THE REVERSE TUNNEL INTERCEPTOR: Routes hardware tasks down to your laptop
-    if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open"]):
-        if not agent_websocket:
-            return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop daemon agent is disconnected. Run `local_agent.py` to restore execution links."}
-            
-        cmd_id = str(asyncio.get_running_loop().time())
-        future = asyncio.get_running_loop().create_future()
-        pending_futures[cmd_id] = future
+    try:
+        global agent_websocket
+        user_instruction = payload.message
+        sender_name = payload.user
+        sid = payload.session_id
+        title = payload.conversation_title
+        clean_cmd = user_instruction.lower().strip()
         
-        try:
-            # Streams execution instructions over the air down to the laptop script
-            await agent_websocket.send_json({"id": cmd_id, "action": clean_cmd})
-            result_string = await asyncio.wait_for(future, timeout=6.0)
-            return {"response": result_string}
-        except asyncio.TimeoutError:
-            return {"response": "⚠️ **Transmission Timeout:** Local agent failed to process transaction parameters within execution limits."}
-        finally:
-            pending_futures.pop(cmd_id, None)
+        if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open"]):
+            if not agent_websocket:
+                return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected."}
+                
+            cmd_id = str(asyncio.get_running_loop().time())
+            future = asyncio.get_running_loop().create_future()
+            pending_futures[cmd_id] = future
+            
+            try:
+                await agent_websocket.send_json({"id": cmd_id, "action": clean_cmd})
+                result_string = await asyncio.wait_for(future, timeout=6.0)
+                return {"response": result_string}
+            except asyncio.TimeoutError:
+                return {"response": "⚠️ **Transmission Timeout:** Local agent did not reply in time."}
+            finally:
+                pending_futures.pop(cmd_id, None)
 
-    # Standard textual chat requests route out to Llama-3 natively
-    save_message_to_history(sid, title, "user", user_instruction, sender_name)
-    chat_context = fetch_session_context(sid, limit=6)
-    messages_payload = [{"role": "system", "content": "You are AIRA, an enterprise SaaS dark-aesthetic core assistant."}] + chat_context
-    
-    env_key = fetch_active_groq_key()
-    async with aiohttp.ClientSession() as session:
-        headers = {"Authorization": f"Bearer {env_key}", "Content-Type": "application/json"}
-        api_payload = {"model": "llama-3.1-8b-instant", "messages": messages_payload, "temperature": 0.4}
-        try:
+        save_message_to_history(sid, title, "user", user_instruction, sender_name)
+        chat_context = fetch_session_context(sid, limit=6)
+        messages_payload = [{"role": "system", "content": "You are AIRA, an enterprise SaaS dark-aesthetic core assistant."}] + chat_context
+        
+        env_key = fetch_active_groq_key()
+        
+        # 🛡️ Catch missing API key instantly before requesting Groq
+        if not env_key or len(env_key) < 10:
+            return {"response": "🔑 **Groq API Key Missing:** Please open the mobile app Sidebar Drawer ➔ System Settings, paste your valid API key, and tap save."}
+
+        async with aiohttp.ClientSession() as session:
+            headers = {"Authorization": f"Bearer {env_key}", "Content-Type": "application/json"}
+            api_payload = {"model": "llama-3.1-8b-instant", "messages": messages_payload, "temperature": 0.4}
             async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=api_payload) as response:
                 if response.status == 200:
                     data = await response.json()
                     reply = data["choices"][0]["message"]["content"]
                     save_message_to_history(sid, title, "assistant", reply, "AIRA Engine")
                     return {"response": reply}
-                return {"response": f"⚠️ Cloud AI cluster network error: {response.status}"}
-        except Exception as e:
-            return {"response": f"📡 Cloud link transmission error: {str(e)}"}
+                else:
+                    err_text = await response.text()
+                    return {"response": f"⚠️ **Groq API Error ({response.status}):** Check if your key is active. Details: {err_text[:100]}"}
+    except Exception as global_error:
+        return {"response": f"❌ **Internal Cloud Core Exception:** {str(global_error)}"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

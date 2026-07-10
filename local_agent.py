@@ -33,15 +33,15 @@ def speak_out_loud(text: str):
     except Exception: pass
 
 async def local_agent_execution_loop():
-    # Local connection targeting target runtime port (Change to cloud URL during final deployment)
-    uri = "ws://localhost:8000/ws/agent"
+    # 🌐 CLOUD WEBSOCKET GATEWAY: Locked down to your live secure Render connection address
+    uri = "wss://aira-l1c5.onrender.com/ws/agent"
     print(f"📡 [Local Agent] Activating transmission array targeting core node: {uri}")
     
     while True:
         try:
             async with websockets.connect(uri, ping_interval=20, ping_timeout=20) as websocket:
-                print("🟢 [Connected] Secure hardware tunnel link established successfully.")
-                speak_out_loud("Hardware daemon connection synchronized cleanly, Shadik.")
+                print(" 🟢 [Connected] Secure hardware tunnel link established successfully with Render Cloud cluster.")
+                speak_out_loud("Global cloud cluster synchronized cleanly, Shadik.")
                 
                 while True:
                     message_bytes = await websocket.recv()
@@ -83,9 +83,9 @@ async def local_agent_execution_loop():
                     }))
                     print(f"📤 [Outbound Response] Returned calculation results for package payload ID: {cmd_id}")
                     
-        except (websockets.exceptions.ConnectionClosed, OSError):
-            print("❌ [Disconnected] Connection link broken. Retrying handshake in 4 seconds...")
-            await asyncio.sleep(4)
+        except (websockets.exceptions.ConnectionClosed, OSError) as e:
+            print(f"❌ [Disconnected] Connection link broken ({str(e)}). Retrying handshake in 5 seconds...")
+            await asyncio.sleep(5)
         except Exception as e:
             print(f"⚠️ [Runtime Warning] Unexpected matrix fault: {str(e)}")
             await asyncio.sleep(2)
