@@ -24,10 +24,11 @@ import psutil
 import pyttsx3
 import speech_recognition as sr  
 import threading                
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+import shutil
 
 class ChatPayload(BaseModel):
     message: str
@@ -45,6 +46,10 @@ app.add_middleware(
 
 DB_FILE = "aira_cloud_node.db"
 NOTE_FILE = "aira_notes.txt"
+UPLOAD_DIR = "uploads"
+
+# Ensure the physical upload storage vault exists on your hard drive
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Initialize our custom hardware automation clusters
 sys_control = SystemController()
@@ -62,7 +67,7 @@ def execute_native_voice_stream(text_to_speak: str):
     except Exception as e:
         print(f"❌ [Voice Engine Error] {str(e)}")
 
-# 🎙️ CONTINUOUS BACKGROUND LISTENING CORE (FORGIVING TRANSLATION SCHEME)
+# 🎙️ CONTINUOUS BACKGROUND LISTENING CORE
 def continuous_ambient_ear_loop():
     recognizer = sr.Recognizer()
     microphone = sr.Microphone()
@@ -79,11 +84,8 @@ def continuous_ambient_ear_loop():
                     
                     print(f"👂 [Audio Signal Detected]: '{spoken_text}'")
                     
-                    # 🪐 THE PHONETIC WAKE POOL: Catches all common spelling guesses from Google
                     wake_variants = ["aira", "ira", "hair", "era", "hey ira", "hey aira"]
                     is_wake_hit = any(variant in spoken_text for variant in wake_variants)
-                    
-                    # Direct action overrides (Backup plan if wake word is completely cut off)
                     is_direct_action = any(cmd in spoken_text for cmd in ["youtube", "status", "hardware", "whatsapp"])
                     
                     if is_wake_hit or is_direct_action:
@@ -155,6 +157,31 @@ def fetch_groq_api_key():
                 if "GROQ_API_KEY" in line and "=" in line:
                     return line.split("=")[1].strip().strip('"').strip("'")
     return os.getenv("GROQ_API_KEY", "")
+
+# 📦 NEW FILE UPLOAD CHANNEL
+@app.post("/upload")
+async def receive_remote_file(file: UploadFile = File(...)):
+    """Accepts files sent wirelessly from your smartphone and saves them safely."""
+    try:
+        destination_path = os.path.join(UPLOAD_DIR, file.filename)
+        
+        # Saves the file bytes dynamically into your local uploads directory
+        with open(destination_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        print(f"📥 [File Pipeline] Saved inbound file: '{file.filename}' successfully inside vault.")
+        
+        # Make AIRA speak out loud when a download lands successfully!
+        asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, f"File received: {file.filename} has been saved to your workspace vault, Shadik."))
+        
+        return {
+            "status": "success",
+            "saved_name": file.filename,
+            "message": "File verified and written into laptop hardware storage clusters cleanly."
+        }
+    except Exception as e:
+        print(f"❌ [File Pipeline Failure]: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal vault write failure: {str(e)}")
 
 @app.post("/chat")
 async def handle_flutter_chat(payload: ChatPayload):
@@ -229,7 +256,7 @@ async def handle_flutter_chat(payload: ChatPayload):
             asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, "Note added to workspace."))
             return {"response": execution_result}
 
-    # If it's not an exact hardware shortcut command, route to Llama-3 via Groq API
+    # Route to Llama-3 via Groq API
     save_message_to_history("user", user_instruction, sender_name)
     chat_context = fetch_recent_context_history(limit=6)
 
@@ -262,12 +289,9 @@ async def handle_flutter_chat(payload: ChatPayload):
 async def app_startup_sequence():
     init_memory_database()
     database.init_db()
-    
     print("⚡ Deploying Voiced Server Infrastructure with Background Ear Matrix...")
-    
     listener_thread = threading.Thread(target=continuous_ambient_ear_loop, daemon=True)
     listener_thread.start()
-    
     asyncio.create_task(activate_background_bot_nodes())
 
 async def activate_background_bot_nodes():
@@ -276,6 +300,5 @@ async def activate_background_bot_nodes():
     await asyncio.sleep(1)
     print("🚀 [Discord Node] Client logged in successfully as user: AIRA OS")
 
-# 🌐 NETWORK PORT BROADCAST KEY: Opens host doorways to 0.0.0.0 for cross-device signals
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

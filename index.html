@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIRA OS - Premium AI System Core</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #121212;
+            color: #E2E8F0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            text-align: center;
+            padding: 40px;
+            background: #191919;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+
+        .logo-shield {
+            color: #D97706;
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            color: #white;
+        }
+
+        p.subtitle {
+            color: #718096;
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+        }
+
+        .download-grid {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+        }
+
+        .download-card {
+            background: #222222;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 24px;
+            width: 220px;
+            text-align: center;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+        }
+
+        .download-card:hover {
+            transform: translateY(-5px);
+            border-color: #D97706;
+            background: #262626;
+        }
+
+        .card-icon {
+            font-size: 32px;
+            color: #D97706;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .card-meta {
+            font-size: 0.8rem;
+            color: #718096;
+        }
+
+        .footer-tag {
+            font-size: 0.85rem;
+            color: #38A169;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="logo-shield">🛡️</div>
+        <h1>AIRA OS CORE</h1>
+        <p class="subtitle">Tenant System Sandbox • Created by Shaik Shadik</p>
+
+        <div class="download-grid">
+            
+            <a href="front_end_app/build/app/outputs/flutter-apk/app-release.apk" download class="download-card">
+                <div class="card-icon">📱</div>
+                <div class="card-title">Android App</div>
+                <div class="card-meta">Download Standalone APK</div>
+            </a>
+
+            <a href="#" class="download-card" onclick="alert('Windows Core Installer compiling via next build cycle.')">
+                <div class="card-icon">💻</div>
+                <div class="card-title">Windows PC</div>
+                <div class="card-meta">Download Desktop Client</div>
+            </a>
+
+        </div>
+
+        <div class="footer-tag">
+            <span style="height: 8px; width: 8px; background-color: #2ECC71; border-radius: 50%; display: inline-block;"></span>
+            All distribution channels nominal and authenticated.
+        </div>
+    </div>
+
+</body>
+</html>
