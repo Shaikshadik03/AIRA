@@ -1,4 +1,5 @@
 import sys
+# 🕵️‍♂️ THE PYAUDIO HACK: Fools stubborn libraries into using our updated audio tool
 try:
     import pyaudiowpatch as pyaudio
     sys.modules['pyaudio'] = pyaudio
@@ -210,5 +211,6 @@ async def activate_background_bot_nodes():
     await asyncio.sleep(1)
     print("🚀 [Discord Node] Client logged in successfully as user: AIRA OS")
 
+# 🌐 NETWORK PORT BROADCAST KEY: Opens host doorways to 0.0.0.0 for cross-device signals
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
