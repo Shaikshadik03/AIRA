@@ -34,10 +34,9 @@ import shutil
 
 # --- SECURITY SCHEME: Irreversible SHA-256 Password Hasher ---
 def hash_user_password(password: str) -> str:
-    """Transforms a plain text password into a secure 64-character token."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
-# Data Blueprints for SaaS Authentication
+# Data Blueprints for SaaS Request Processing
 class RegisterPayload(BaseModel):
     username: str
     email: str
@@ -52,6 +51,11 @@ class ChatPayload(BaseModel):
     session_id: str = "default_session"
     conversation_title: str = "New Connection Frame"
     user: str = "Anonymous User"
+
+# ⚙️ NEW: Blueprint to parse configuration updates from your phone
+class SettingsUpdatePayload(BaseModel):
+    groq_api_key: str
+    theme_accent: str = "Obsidian Slate"
 
 DB_FILE = "aira_cloud_node.db"
 NOTE_FILE = "aira_notes.txt"
@@ -81,12 +85,12 @@ def continuous_ambient_ear_loop():
     try:
         with microphone as source:
             recognizer.adjust_for_ambient_noise(source, duration=1)
-            print("\n📡 [Voice Node] Ambient ears armed. Listening for 'Hey AIRA'...")
+            print("\n📡 [Voice Node] Ambient ears armed. Listening...")
             while True:
                 try:
                     audio_packet = recognizer.listen(source, phrase_time_limit=4)
                     spoken_text = recognizer.recognize_google(audio_packet).lower().strip()
-                    if any(v in spoken_text for v in ["aira", "ira", "hey aira"]):
+                    if any(v in spoken_text for v in ["aira", "ira"]):
                         if "status" in spoken_text:
                             cpu_load = psutil.cpu_percent()
                             execute_native_voice_stream(f"Live CPU load is at {cpu_load} percent.")
@@ -99,7 +103,14 @@ def init_memory_database():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # 👥 FIXED: Changed TEXT NOT EXISTS to TEXT NOT NULL
+    # ⚙️ SETTINGS UPGRADE: Create a configurations table to hold active API keys and theme selections
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            config_key TEXT PRIMARY KEY,
+            config_value TEXT
+        )
+    """)
+    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,7 +134,7 @@ def init_memory_database():
     """)
     conn.commit()
     conn.close()
-    print("💾 [Database Node] Enterprise User Auth tables initialized.")
+    print("💾 [Database Node] Enterprise User Auth and Settings tables initialized.")
 
 def save_message_to_history(session_id: str, title: str, role: str, content: str, user_identity: str):
     conn = sqlite3.connect(DB_FILE)
@@ -142,6 +153,27 @@ def fetch_session_context(session_id: str, limit=10):
     rows = cursor.fetchall()
     conn.close()
     return [{"role": role, "content": content} for role, content in reversed(rows)]
+
+# 🔄 DYNAMIC ROTATION CHECK: Queries the database first for updated API keys, falls back to .env
+def fetch_active_groq_key() -> str:
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT config_value FROM system_settings WHERE config_key = 'groq_api_key'")
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row and row[0].strip():
+            return row[0].strip()
+    except Exception:
+        pass
+        
+    if os.path.exists(".env"):
+        with open(".env", "r") as f:
+            for line in f:
+                if "GROQ_API_KEY" in line:
+                    return line.split("=")[1].strip().strip('"').strip("'")
+    return ""
 
 @asynccontextmanager
 async def aira_application_lifespan(app: FastAPI):
@@ -163,61 +195,97 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔐 ENDPOINT 1: USER REGISTRATION GATEWAY
+# ⚙️ CONTROL GATEWAY 1: GET RUNTIME CONFIGURATIONS
+@app.get("/settings")
+async def get_current_system_settings():
+    """Fetches saved API rotation flags and cosmetic configurations."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT config_key, config_value FROM system_settings")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        settings_dict = {"groq_api_key": "", "theme_accent": "Obsidian Slate"}
+        for r in rows:
+            if r[0] == "groq_api_key":
+                settings_dict["groq_api_key"] = r[1]
+            elif r[0] == "theme_accent":
+                settings_dict["theme_accent"] = r[1]
+                
+        return settings_dict
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ⚙️ CONTROL GATEWAY 2: POST CONFIGURATION CHANGES
+@app.post("/settings")
+async def update_system_settings(payload: SettingsUpdatePayload):
+    """Saves updated parameters directly to your laptop's database configuration registry."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO system_settings (config_key, config_value) 
+            VALUES ('groq_api_key', ?)
+        """, (payload.groq_api_key.strip(),))
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO system_settings (config_key, config_value) 
+            VALUES ('theme_accent', ?)
+        """, (payload.theme_accent.strip(),))
+        
+        conn.commit()
+        conn.close()
+        print("⚙️ [Settings Applied] Updated operational parameters locked into database.")
+        return {"status": "success", "message": "System parameters rotated and saved successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ⚙️ CONTROL GATEWAY 3: PURGE CHAT CACHE WIPE
+@app.post("/database/clear")
+async def clear_all_conversation_logs():
+    """Wipes out all records in the system chat log table for a clean slate."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM system_chat_logs")
+        conn.commit()
+        conn.close()
+        print("🧹 [System Purge Done] Clean slate execution triggered.")
+        asyncio.create_task(asyncio.to_thread(execute_native_voice_stream, "System cache data cleared successfully, Shadik."))
+        return {"status": "success", "message": "All database conversation log strings successfully purged."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 🔐 AUTH ENDPOINTS
 @app.post("/auth/register")
 async def register_saas_user(payload: RegisterPayload):
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        
         cursor.execute("SELECT id FROM users WHERE email = ?", (payload.email.strip().lower(),))
         if cursor.fetchone():
             conn.close()
             raise HTTPException(status_code=400, detail="This email channel is already registered.")
-            
         hashed_pw = hash_user_password(payload.password)
-        
-        cursor.execute("""
-            INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)
-        """, (payload.username.strip(), payload.email.strip().lower(), hashed_pw))
-        
+        cursor.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)", (payload.username.strip(), payload.email.strip().lower(), hashed_pw))
         conn.commit()
         conn.close()
-        print(f"👤 [Auth Registry] New client account initialized: {payload.email}")
-        return {"status": "success", "message": "User credentials authenticated and registered cleanly."}
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="Database registry collision occurred.")
+        return {"status": "success", "message": "User registered cleanly."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 🔐 ENDPOINT 2: USER LOGIN PORTAL
 @app.post("/auth/login")
 async def login_saas_user(payload: LoginPayload):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
     cursor.execute("SELECT username, password_hash FROM users WHERE email = ?", (payload.email.strip().lower(),))
     record = cursor.fetchone()
     conn.close()
-    
-    if not record:
-        raise HTTPException(status_code=401, detail="Invalid account authorization credentials.")
-        
-    db_username, db_password_hash = record
-    incoming_hash = hash_user_password(payload.password)
-    
-    if incoming_hash != db_password_hash:
-        raise HTTPException(status_code=401, detail="Invalid account authorization credentials.")
-        
-    print(f"🔓 [Auth Portal] Access clearance granted to user: {payload.email}")
-    return {
-        "status": "success",
-        "message": "Security authorization clear.",
-        "user": {
-            "username": db_username,
-            "email": payload.email.strip().lower()
-        }
-    }
+    if not record or hash_user_password(payload.password) != record[1]:
+        raise HTTPException(status_code=401, detail="Invalid account credentials.")
+    return {"status": "success", "user": {"username": record[0], "email": payload.email.strip().lower()}}
 
 @app.get("/sessions")
 async def get_all_active_sessions():
@@ -271,12 +339,8 @@ async def handle_flutter_chat(payload: ChatPayload):
     system_instruction = {"role": "system", "content": "You are AIRA, an enterprise SaaS dark-aesthetic core assistant."}
     messages_payload = [system_instruction] + chat_context
     
-    env_key = ""
-    if os.path.exists(".env"):
-        with open(".env", "r") as f:
-            for line in f:
-                if "GROQ_API_KEY" in line:
-                    env_key = line.split("=")[1].strip().strip('"').strip("'")
+    # Use our newly added dynamic API check function!
+    env_key = fetch_active_groq_key()
 
     async with aiohttp.ClientSession() as session:
         headers = {"Authorization": f"Bearer {env_key}", "Content-Type": "application/json"}
