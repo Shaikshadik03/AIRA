@@ -34,10 +34,6 @@ DB_FILE = "aira_cloud_node.db"
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# 🔌 TUNNEL CONNECTION REGISTRY
-agent_websocket: WebSocket = None
-pending_futures = {}
-
 def hash_user_password(password: str) -> str:
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
@@ -106,10 +102,19 @@ async def cloud_application_lifespan(app: FastAPI):
 
 app = FastAPI(title="AIRA Cloud Core Gateway", lifespan=cloud_application_lifespan)
 
+# 🌐 CLOUD HEALTH MONITOR ROUTE: Added to verify deployment status on Render hosting systems
+@app.get("/")
+async def cloud_health_check():
+    return {"status": "online", "matrix": "AIRA OS SaaS Core Live Node"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
+
+# 🔌 TUNNEL CONNECTION REGISTRY
+agent_websocket: WebSocket = None
+pending_futures = {}
 
 # 🎛️ SECURE REVERSE TUNNEL GATEWAY: Keeps communication channel open for your laptop
 @app.websocket("/ws/agent")
