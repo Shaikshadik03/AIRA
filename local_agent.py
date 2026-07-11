@@ -12,6 +12,7 @@ import urllib.parse
 import io
 import base64
 from PIL import Image
+from datetime import datetime  # 🕒 Added to track exact time signatures
 
 # 🔑 Windows Driver Core Virtual Key Map Codes
 VK_VOLUME_MUTE = 0xAD
@@ -165,7 +166,10 @@ async def run_hardware_agent():
                         # 📸 REVERSE SCREENSHOT STREAM DIRECTIVE
                         elif "screenshot" in action or "capture screen" in action:
                             speak("Capturing screen array map.")
-                            ss_filename = "aira_desktop_snap.png"
+                            
+                            # ⚡ UPGRADED: Create a completely unique name using the current date and time
+                            timestamp = datetime.now().strftime("%Y_%m_%d_%H%M%S")
+                            ss_filename = f"aira_snap_{timestamp}.png"
                             
                             try:
                                 pyautogui.screenshot(ss_filename)
