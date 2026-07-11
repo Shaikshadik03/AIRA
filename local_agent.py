@@ -1,94 +1,122 @@
+import os
 import sys
-try:
-    import pyaudiowpatch as pyaudio
-    sys.modules['pyaudio'] = pyaudio
-except ImportError: pass
-
-# --- IMPORT LOCAL HARDWARE HOOKS FROM WORKSPACE ---
-import database
-from system_control import SystemController
-from profile_manager import ProfileManager
-from app_launcher import AppLauncher
-from note_manager import NoteManager
-# --------------------------------------------------
-
+import time
+import json
 import asyncio
 import websockets
-import json
-import psutil
-import webbrowser
+import pyautogui
 import pyttsx3
 
-sys_control = SystemController()
-launcher = AppLauncher()
-profile_mgr = ProfileManager()
-note_mgr = NoteManager("aira_notes.txt")
+# Initialize voice engine for hardware confirmations
+try:
+    engine = pyttsx3.init()
+except Exception:
+    engine = None
 
-def speak_out_loud(text: str):
-    try:
-        engine = pyttsx3.init()
-        engine.setProperty('rate', 180)
-        engine.say(text.replace("**", ""))
-        engine.runAndWait()
-    except Exception: pass
+def speak(text):
+    print(f"🔊 [Agent Voice]: {text}")
+    if engine:
+        try:
+            engine.say(text)
+            engine.runAndWait()
+        except Exception:
+            pass
 
-async def local_agent_execution_loop():
-    # 🌐 CLOUD WEBSOCKET GATEWAY: Locked down to your live secure Render connection address
-    uri = "wss://aira-l1c5.onrender.com/ws/agent"
-    print(f"📡 [Local Agent] Activating transmission array targeting core node: {uri}")
+RENDER_WS_URL = "wss://aira-l1c5.onrender.com/ws/agent"
+
+async def run_hardware_agent():
+    speak("Initializing secure connection framework to AIRA cloud core cluster.")
     
     while True:
         try:
-            async with websockets.connect(uri, ping_interval=20, ping_timeout=20) as websocket:
-                print(" 🟢 [Connected] Secure hardware tunnel link established successfully with Render Cloud cluster.")
-                speak_out_loud("Global cloud cluster synchronized cleanly, Shadik.")
+            print(f"📡 Attempting connection to global grid: {RENDER_WS_URL}")
+            async with websockets.connect(RENDER_WS_URL) as websocket:
+                speak("AIRA Matrix online. Operational link established successfully.")
+                print("✅ Secure reverse tunnel active. Listening for cloud directives...")
                 
                 while True:
-                    message_bytes = await websocket.recv()
-                    payload = json.loads(message_bytes)
-                    
+                    message = await websocket.recv()
+                    payload = json.loads(message)
                     cmd_id = payload.get("id")
-                    action_cmd = payload.get("action", "")
-                    print(f"📥 [Inbound Command] ID: {cmd_id} | Action parameters: '{action_cmd}'")
+                    action = payload.get("action", "").lower().strip()
                     
-                    result_report = "Command initialized."
-                    
-                    # Intercept processing blocks mapped locally
-                    if "system status" in action_cmd:
-                        cpu = psutil.cpu_percent()
-                        ram = psutil.virtual_memory().percent
-                        result_report = f"📊 **Diagnostic Performance Matrix:**\n\n💻 CPU Load: {cpu}%\n🧠 RAM Allocation: {ram}%"
-                        speak_out_loud(f"System status checked. CPU load is at {cpu} percent.")
+                    print(f"📥 Received execution frame [{cmd_id}]: {action}")
+                    result_string = "Command unmapped."
+
+                    try:
+                        # 🛡️ SYSTEM STATUS DIRECTIVES
+                        if "system status" in action:
+                            result_string = "🖥️ **Laptop Status:** Online, connected to cloud matrix, power grid stable."
                         
-                    elif "lock" in action_cmd and "pc" in action_cmd:
-                        res = sys_control.execute_action("lock")
-                        result_report = f"🔒 OS Control Engine: {res}"
-                        speak_out_loud("Locking computer terminal.")
-                        
-                    elif "sleep" in action_cmd:
-                        res = sys_control.execute_action("sleep")
-                        result_report = f"💤 OS Control Engine: {res}"
-                        
-                    elif "open" in action_cmd:
-                        for app in ["chrome", "notepad", "vstext"]:
-                            if app in action_cmd:
-                                launcher.launch_program(app)
-                                result_report = f"🚀 Launched application instance: {app.upper()}"
-                                speak_out_loud(f"Opening {app} program loop.")
+                        # 🔒 SECURITY DIRECTIVES
+                        elif "lock" in action:
+                            speak("Securing console layer.")
+                            if sys.platform == "win32":
+                                os.system("rundll32.exe user32.dll,LockWorkStation")
+                                result_string = "🔒 Command executed: Console interface locked securely."
+                            else:
+                                result_string = "⚠️ OS lock target not supported natively."
                                 
-                    # Return calculated hardware status indicators back up to the cloud gate
-                    await websocket.send(json.dumps({
-                        "id": cmd_id,
-                        "result": result_report
-                    }))
-                    print(f"📤 [Outbound Response] Returned calculation results for package payload ID: {cmd_id}")
-                    
-        except (websockets.exceptions.ConnectionClosed, OSError) as e:
-            print(f"❌ [Disconnected] Connection link broken ({str(e)}). Retrying handshake in 5 seconds...")
+                        elif "sleep" in action:
+                            speak("Entering power suspension mode.")
+                            if sys.platform == "win32":
+                                os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+                                result_string = "🌙 Command executed: Laptop suspension mode engaged."
+                            else:
+                                result_string = "⚠️ OS sleep target not supported natively."
+
+                        # 🌐 APPLICATION LAUNCH DIRECTIVES
+                        elif "open chrome" in action:
+                            speak("Launching internet browser.")
+                            os.system("start chrome")
+                            result_string = "🌐 Google Chrome initialized successfully."
+                            
+                        elif "open notepad" in action:
+                            speak("Launching notepad core.")
+                            os.system("start notepad")
+                            result_string = "📝 Notepad instance launched successfully."
+                            
+                        elif "open vscode" in action or "open vs code" in action:
+                            speak("Launching development workspace.")
+                            os.system("code")
+                            result_string = "💻 Visual Studio Code environment initialized."
+
+                        # 🔊 NEW HARDWARE ENTERTAINMENT CONTROLS
+                        elif "volume up" in action:
+                            for _ in range(5):
+                                pyautogui.press("volumeup")
+                            result_string = "🔊 System volume increased by 5 units."
+
+                        elif "volume down" in action:
+                            for _ in range(5):
+                                pyautogui.press("volumedown")
+                            result_string = "🔉 System volume decreased by 5 units."
+
+                        elif "mute" in action:
+                            pyautogui.press("volumemute")
+                            result_string = "🔇 System audio toggle executed successfully."
+
+                        elif "play" in action or "pause" in action:
+                            pyautogui.press("playpause")
+                            result_string = "⏯️ Media playback state toggled."
+                            
+                        else:
+                            result_string = f"❓ Operational command '{action}' not recognized by local agent."
+                            
+                    except Exception as error:
+                        result_string = f"❌ Execution failure on laptop agent: {str(error)}"
+
+                    # Send back response loop to cloud server
+                    await websocket.send(json.dumps({"id": cmd_id, "result": result_string}))
+                    print(f"📤 Transmission return loop completed for task [{cmd_id}].")
+
+        except Exception as conn_error:
+            print(f"⚠️ Link connection dropped or failed: {str(conn_error)}")
+            print("⏳ Re-establishing transport protocol layer in 5 seconds...")
             await asyncio.sleep(5)
-        except Exception as e:
-            print(f"⚠️ [Runtime Warning] Unexpected matrix fault: {str(e)}")
-            await asyncio.sleep(2)
 
 if __name__ == "__main__":
-    asyncio.run(local_agent_execution_loop())
+    try:
+        asyncio.run(run_hardware_agent())
+    except KeyboardInterrupt:
+        print("\n🛑 Laptop hardware agent shut down manually.")

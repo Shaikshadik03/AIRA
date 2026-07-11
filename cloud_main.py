@@ -29,7 +29,6 @@ class SettingsUpdatePayload(BaseModel):
     groq_api_key: str
     theme_accent: str = "Obsidian Slate"
 
-# 💾 UPGRADED DATABASE POINTER: Forces a clean column mapping on Render
 DB_FILE = "aira_cloud_v2.db"
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -124,10 +123,10 @@ async def agent_tunnel_endpoint(websocket: WebSocket):
             cmd_id = inbound_payload.get("id")
             if cmd_id in pending_futures:
                 pending_futures[cmd_id].set_result(inbound_payload.get("result"))
-    except WebSocketDisconnect:
-        pass
-    finally:
-        agent_websocket = None
+        except WebSocketDisconnect:
+            pass
+        finally:
+            agent_websocket = None
 
 @app.post("/auth/register")
 async def register_saas_user(payload: RegisterPayload):
@@ -202,7 +201,8 @@ async def handle_flutter_chat(payload: ChatPayload):
         title = payload.conversation_title
         clean_cmd = user_instruction.lower().strip()
         
-        if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open"]):
+        # 📡 UPDATED HARDWARE GATE ROUTING FILTER FOR MEDIA INTERCEPTIONS
+        if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open", "volume", "mute", "play", "pause"]):
             if not agent_websocket:
                 return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected."}
                 
