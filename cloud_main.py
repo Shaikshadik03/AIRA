@@ -3,12 +3,13 @@ import aiohttp
 import sqlite3
 import hashlib
 import asyncio
-from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import uvicorn
 import shutil
+import pypdf
 
 class RegisterPayload(BaseModel):
     username: str
@@ -127,7 +128,6 @@ async def agent_tunnel_endpoint(websocket: WebSocket):
         pass
     finally:
         agent_websocket = None
-        # 🛡️ DISCONNECT SAFEGUARD: Clear pending jobs immediately if socket dies
         for cmd_id, future in list(pending_futures.items()):
             if not future.done():
                 future.set_result({"text": "📡 **Hardware Agent Disconnected:** The connection dropped unexpectedly during data transmission.", "image": None})
@@ -205,7 +205,6 @@ async def handle_flutter_chat(payload: ChatPayload):
         title = payload.conversation_title
         clean_cmd = user_instruction.lower().strip()
         
-        # 📡 INTERCEPTOR GATE ARRAY
         if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open", "volume", "mute", "play", "pause", "screenshot"]) or clean_cmd.startswith("search"):
             if not agent_websocket:
                 return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected.", "image": None}
@@ -218,7 +217,6 @@ async def handle_flutter_chat(payload: ChatPayload):
                 await agent_websocket.send_json({"id": cmd_id, "action": clean_cmd})
                 result_data = await asyncio.wait_for(future, timeout=10.0)
                 
-                # Format response natively based on whether data contains a structured payload
                 if isinstance(result_data, dict):
                     return {
                         "response": result_data.get("text", ""),
@@ -236,7 +234,6 @@ async def handle_flutter_chat(payload: ChatPayload):
         messages_payload = [{"role": "system", "content": "You are AIRA, an enterprise SaaS dark-aesthetic core assistant."}] + chat_context
         
         env_key = fetch_active_groq_key()
-        
         if not env_key or len(env_key) < 10:
             return {"response": "🔑 **Groq API Key Missing:** Please open the mobile app Sidebar Drawer ➔ System Settings, paste your valid API key, and tap save.", "image": None}
 
@@ -254,6 +251,82 @@ async def handle_flutter_chat(payload: ChatPayload):
                     return {"response": f"⚠️ **Groq API Error ({response.status}):** Check if your key is active. Details: {err_text[:100]}", "image": None}
     except Exception as global_error:
         return {"response": f"❌ **Internal Cloud Core Exception:** {str(global_error)}", "image": None}
+
+# 🧠 NEW ROUTE: DOCUMENT INTELLIGENCE PIPELINE FOR MOBILES
+@app.post("/chat/document")
+async def upload_and_analyze_pdf(
+    file: UploadFile = File(...),
+    session_id: str = Form("default_session"),
+    conversation_title: str = Form("Document Analysis Frame"),
+    user: str = Form("Anonymous User")
+):
+    try:
+        if not file.filename.lower().endswith('.pdf'):
+            return {"response": "❌ **Format Refusal:** AIRA Document Core only parses native `.pdf` files.", "image": None}
+        
+        # Save image file to local cloud staging area folder
+        file_path = os.path.join(UPLOAD_DIR, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Parse text map using pypdf reader engine
+        extracted_text = ""
+        with open(file_path, "rb") as pdf_file:
+            reader = pypdf.PdfReader(pdf_file)
+            for page in reader.pages:
+                text_content = page.extract_text()
+                if text_content:
+                    extracted_text += text_content + "\n"
+                    
+        # Safeguard empty parsing returns
+        if not extracted_text.strip():
+            return {"response": "⚠️ **Parsing Defect:** The PDF was uploaded but no readable text vector strings could be extracted (it might be a scanned image).", "image": None}
+            
+        # Log document submission event visually inside chat timeline database
+        user_display_msg = f"📁 [Uploaded Document File]: {file.filename} ({len(extracted_text)} characters parsed)"
+        save_message_to_history(session_id, conversation_title, "user", user_display_msg, user)
+        
+        # Pull active key strings
+        env_key = fetch_active_groq_key()
+        if not env_key or len(env_key) < 10:
+            return {"response": "🔑 **Groq API Key Missing:** Document mapped cleanly, but Groq authorization token is absent.", "image": None}
+            
+        # Construct specialized enterprise analysis instructions
+        system_instruction = (
+            "You are AIRA, an enterprise SaaS dark-aesthetic core assistant. "
+            "The user has uploaded a document file core. Read the full text contents attached below, "
+            "and output a beautiful, premium, highly professional summary. Use crisp markdown bullet points, "
+            "break it down into executive highlights, and list actionable takeaways tailored for quick mobile viewing."
+        )
+        
+        messages_payload = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": f"Document Name: {file.filename}\n\nDocument Contents:\n{extracted_text}"}
+        ]
+        
+        # Fire pipeline payload query block to Llama-3 API core node
+        async with aiohttp.ClientSession() as session:
+            headers = {"Authorization": f"Bearer {env_key}", "Content-Type": "application/json"}
+            api_payload = {"model": "llama-3.1-8b-instant", "messages": messages_payload, "temperature": 0.3}
+            async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=api_payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    analysis_reply = data["choices"][0]["message"]["content"]
+                    save_message_to_history(session_id, conversation_title, "assistant", analysis_reply, "AIRA Engine")
+                    return {"response": analysis_reply, "image": None}
+                else:
+                    err_text = await response.text()
+                    return {"response": f"⚠️ **Groq API Document Analysis Error ({response.status}):** Details: {err_text[:100]}", "image": None}
+                    
+    except Exception as doc_error:
+        return {"response": f"❌ **Document Pipeline Exception Event:** {str(doc_error)}", "image": None}
+    finally:
+        # Clean up files inside the uploads cache directory to protect storage boundaries
+        if 'file_path' in locals() and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
