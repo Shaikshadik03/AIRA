@@ -8,6 +8,7 @@ import pyttsx3
 import ctypes
 import webbrowser
 import pyautogui
+import urllib.parse
 
 # 🔑 Windows Driver Core Virtual Key Map Codes
 VK_VOLUME_MUTE = 0xAD
@@ -74,10 +75,26 @@ async def run_hardware_agent():
                         elif "sleep" in action:
                             speak("Entering power suspension mode.")
                             if sys.platform == "win32":
-                                os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
-                                result_string = "🌙 Command executed: Laptop suspension mode engaged."
+                                await websocket.send(json.dumps({"id": cmd_id, "result": "🌙 Command executed: Laptop suspension mode engaged."}))
+                                print(f"📤 Transmission return loop completed early for sleep state.")
+                                time.sleep(1.5)
+                                os.system('powershell -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $false, $false)"')
+                                continue
                             else:
                                 result_string = "⚠️ OS sleep target not supported natively."
+
+                        # 🔍 NEW DYNAMIC SEARCH ENGINE DIRECTIVE
+                        elif action.startswith("search"):
+                            # Extract search query text after the word "search "
+                            search_query = action.replace("search", "", 1).strip()
+                            if search_query:
+                                speak(f"Executing deep web search grid query for {search_query}")
+                                encoded_query = urllib.parse.quote(search_query)
+                                search_url = f"https://www.google.com/search?q={encoded_query}"
+                                webbrowser.open(search_url)
+                                result_string = f"🔍 **Search Active:** Default browser routed to Google for query: `{search_query}`"
+                            else:
+                                result_string = "⚠️ **Search Error:** Empty query string detected. Try typing: `search [your topic]`"
 
                         # 🌐 NATIVE APPLICATION LAUNCH DIRECTIVES
                         elif "open chrome" in action:
@@ -95,7 +112,7 @@ async def run_hardware_agent():
                             os.system("code")
                             result_string = "💻 Visual Studio Code environment initialized."
 
-                        # 🔗 NEW GLOBAL WEBSITE URL LAUNCH DIRECTIVES
+                        # 🔗 GLOBAL WEBSITE URL LAUNCH DIRECTIVES
                         elif "open youtube" in action:
                             speak("Opening YouTube.")
                             webbrowser.open("https://www.youtube.com")
@@ -137,12 +154,11 @@ async def run_hardware_agent():
                             send_windows_hardware_key(VK_MEDIA_PLAY_PAUSE)
                             result_string = "⏯️ Media playback state toggled via hardware kernel."
 
-                        # 📸 NEW REVERSE SCREENSHOT STREAM DIRECTIVE
+                        # 📸 REVERSE SCREENSHOT STREAM DIRECTIVE
                         elif "screenshot" in action or "capture screen" in action:
                             speak("Capturing screen array map.")
                             ss_filename = "aira_desktop_snap.png"
                             pyautogui.screenshot(ss_filename)
-                            # Finds absolute storage address path
                             abs_path = os.path.abspath(ss_filename)
                             result_string = f"📸 **Snapshot Captured:** Desktop image successfully mapped and saved locally at: `{abs_path}`"
                             
