@@ -94,6 +94,62 @@ def fetch_active_groq_key() -> str:
     except Exception: pass
     return os.getenv("GROQ_API_KEY", "")
 
+# 🧠 NEW FLEXIBLE INTENT RESOLVER MATRIX
+def resolve_hardware_intent(user_input: str) -> str | None:
+    """Parses natural phrasing variations and normalizes them into strict laptop command mappings"""
+    cmd = user_input.lower().strip()
+    
+    # 1. Console Security & Power Grid Commands
+    if any(word in cmd for word in ["lock workstation", "lock pc", "lock computer", "secure pc"]) or cmd == "lock":
+        return "lock"
+    if any(word in cmd for word in ["go to sleep", "sleep mode", "suspend pc", "pc sleep", "put pc to sleep"]) or cmd == "sleep":
+        return "sleep"
+        
+    # 2. System Performance Monitoring Commands
+    if any(word in cmd for word in ["system status", "check status", "pc status", "laptop status", "agent status", "how is my laptop"]):
+        return "system status"
+        
+    # 3. Kernel Level Audio Adjustments
+    if any(word in cmd for word in ["volume up", "make louder", "increase volume", "increase sound", "raise volume", "louder"]):
+        return "volume up"
+    if any(word in cmd for word in ["volume down", "make quieter", "decrease volume", "decrease sound", "lower volume", "quieter", "turn down the sound", "turn down sound"]):
+        return "volume down"
+    if any(word in cmd for word in ["toggle mute", "silence pc", "unmute", "mute computer", "mute"]):
+        return "mute"
+    if any(word in cmd for word in ["play media", "pause media", "toggle play", "resume video", "resume music", "play", "pause"]):
+        return "play"
+        
+    # 4. Reverse Visual Capture Controls
+    if any(word in cmd for word in ["screenshot", "capture screen", "take snap", "screen snap", "capture display", "take screenshot", "show screen"]):
+        return "screenshot"
+        
+    # 5. Native Application Array Launches
+    if "chrome" in cmd or "browser" in cmd:
+        if any(word in cmd for word in ["open", "launch", "start", "boot"]): return "open chrome"
+    if "notepad" in cmd or "text editor" in cmd:
+        if any(word in cmd for word in ["open", "launch", "start"]): return "open notepad"
+    if "vscode" in cmd or "vs code" in cmd or "visual studio code" in cmd:
+        if any(word in cmd for word in ["open", "launch", "start", "run"]): return "open vscode"
+        
+    # 6. Web Matrix Target Directives
+    if "youtube" in cmd:
+        if any(word in cmd for word in ["open", "launch", "start", "watch"]): return "open youtube"
+    if "github" in cmd:
+        if any(word in cmd for word in ["open", "launch", "start"]): return "open github"
+    if "leetcode" in cmd:
+        if any(word in cmd for word in ["open", "launch", "start", "solve"]): return "open leetcode"
+    if "google" in cmd and not any(word in cmd for word in ["search", "find", "look up"]):
+        if any(word in cmd for word in ["open", "launch", "start"]): return "open google"
+        
+    # 7. Dynamic Web Search Engine Engine Interceptor
+    for prefix in ["search for ", "search ", "google ", "look up ", "find "]:
+        if cmd.startswith(prefix):
+            query_text = cmd.replace(prefix, "", 1).strip()
+            if query_text:
+                return f"search {query_text}"
+                
+    return None
+
 @asynccontextmanager
 async def cloud_application_lifespan(app: FastAPI):
     init_cloud_database()
@@ -203,9 +259,11 @@ async def handle_flutter_chat(payload: ChatPayload):
         sender_name = payload.user
         sid = payload.session_id
         title = payload.conversation_title
-        clean_cmd = user_instruction.lower().strip()
         
-        if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open", "volume", "mute", "play", "pause", "screenshot"]) or clean_cmd.startswith("search"):
+        # 📡 UPGRADED INTERCEPTOR GATE: Run flexible natural language verification loop
+        hardware_action = resolve_hardware_intent(user_instruction)
+        
+        if hardware_action:
             if not agent_websocket:
                 return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected.", "image": None}
             
@@ -214,7 +272,7 @@ async def handle_flutter_chat(payload: ChatPayload):
             pending_futures[cmd_id] = future
             
             try:
-                await agent_websocket.send_json({"id": cmd_id, "action": clean_cmd})
+                await agent_websocket.send_json({"id": cmd_id, "action": hardware_action})
                 result_data = await asyncio.wait_for(future, timeout=10.0)
                 
                 if isinstance(result_data, dict):
@@ -252,7 +310,6 @@ async def handle_flutter_chat(payload: ChatPayload):
     except Exception as global_error:
         return {"response": f"❌ **Internal Cloud Core Exception:** {str(global_error)}", "image": None}
 
-# 🧠 NEW ROUTE: DOCUMENT INTELLIGENCE PIPELINE FOR MOBILES
 @app.post("/chat/document")
 async def upload_and_analyze_pdf(
     file: UploadFile = File(...),
@@ -264,12 +321,10 @@ async def upload_and_analyze_pdf(
         if not file.filename.lower().endswith('.pdf'):
             return {"response": "❌ **Format Refusal:** AIRA Document Core only parses native `.pdf` files.", "image": None}
         
-        # Save image file to local cloud staging area folder
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        # Parse text map using pypdf reader engine
         extracted_text = ""
         with open(file_path, "rb") as pdf_file:
             reader = pypdf.PdfReader(pdf_file)
@@ -278,20 +333,16 @@ async def upload_and_analyze_pdf(
                 if text_content:
                     extracted_text += text_content + "\n"
                     
-        # Safeguard empty parsing returns
         if not extracted_text.strip():
             return {"response": "⚠️ **Parsing Defect:** The PDF was uploaded but no readable text vector strings could be extracted (it might be a scanned image).", "image": None}
             
-        # Log document submission event visually inside chat timeline database
         user_display_msg = f"📁 [Uploaded Document File]: {file.filename} ({len(extracted_text)} characters parsed)"
         save_message_to_history(session_id, conversation_title, "user", user_display_msg, user)
         
-        # Pull active key strings
         env_key = fetch_active_groq_key()
         if not env_key or len(env_key) < 10:
             return {"response": "🔑 **Groq API Key Missing:** Document mapped cleanly, but Groq authorization token is absent.", "image": None}
             
-        # Construct specialized enterprise analysis instructions
         system_instruction = (
             "You are AIRA, an enterprise SaaS dark-aesthetic core assistant. "
             "The user has uploaded a document file core. Read the full text contents attached below, "
@@ -304,7 +355,6 @@ async def upload_and_analyze_pdf(
             {"role": "user", "content": f"Document Name: {file.filename}\n\nDocument Contents:\n{extracted_text}"}
         ]
         
-        # Fire pipeline payload query block to Llama-3 API core node
         async with aiohttp.ClientSession() as session:
             headers = {"Authorization": f"Bearer {env_key}", "Content-Type": "application/json"}
             api_payload = {"model": "llama-3.1-8b-instant", "messages": messages_payload, "temperature": 0.3}
@@ -321,12 +371,9 @@ async def upload_and_analyze_pdf(
     except Exception as doc_error:
         return {"response": f"❌ **Document Pipeline Exception Event:** {str(doc_error)}", "image": None}
     finally:
-        # Clean up files inside the uploads cache directory to protect storage boundaries
         if 'file_path' in locals() and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception:
-                pass
+            try: os.remove(file_path)
+            except Exception: pass
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
