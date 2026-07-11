@@ -4,8 +4,22 @@ import time
 import json
 import asyncio
 import websockets
-import pyautogui
 import pyttsx3
+import ctypes
+import webbrowser
+import pyautogui
+
+# 🔑 Windows Driver Core Virtual Key Map Codes
+VK_VOLUME_MUTE = 0xAD
+VK_VOLUME_DOWN = 0xAE
+VK_VOLUME_UP = 0xAF
+VK_MEDIA_PLAY_PAUSE = 0xB3
+
+def send_windows_hardware_key(vk_code):
+    """Sends a raw hardware-level key event directly into the Windows OS kernel"""
+    ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)      # Key Down (Press)
+    time.sleep(0.05)                                        # Hold briefly
+    ctypes.windll.user32.keybd_event(vk_code, 0, 2, 0)      # Key Up (Release)
 
 # Initialize voice engine for hardware confirmations
 try:
@@ -65,7 +79,7 @@ async def run_hardware_agent():
                             else:
                                 result_string = "⚠️ OS sleep target not supported natively."
 
-                        # 🌐 APPLICATION LAUNCH DIRECTIVES
+                        # 🌐 NATIVE APPLICATION LAUNCH DIRECTIVES
                         elif "open chrome" in action:
                             speak("Launching internet browser.")
                             os.system("start chrome")
@@ -81,24 +95,56 @@ async def run_hardware_agent():
                             os.system("code")
                             result_string = "💻 Visual Studio Code environment initialized."
 
-                        # 🔊 NEW HARDWARE ENTERTAINMENT CONTROLS
+                        # 🔗 NEW GLOBAL WEBSITE URL LAUNCH DIRECTIVES
+                        elif "open youtube" in action:
+                            speak("Opening YouTube.")
+                            webbrowser.open("https://www.youtube.com")
+                            result_string = "📺 YouTube pipeline opened in your default browser."
+                            
+                        elif "open github" in action:
+                            speak("Opening GitHub.")
+                            webbrowser.open("https://www.github.com")
+                            result_string = "🐙 GitHub code portal opened in your default browser."
+                            
+                        elif "open leetcode" in action:
+                            speak("Opening LeetCode.")
+                            webbrowser.open("https://www.leetcode.com")
+                            result_string = "🧠 LeetCode automation panel ready for algorithms."
+                            
+                        elif "open google" in action:
+                            speak("Opening Google search.")
+                            webbrowser.open("https://www.google.com")
+                            result_string = "🔍 Google Search opened in your default browser."
+
+                        # 🔊 CORE WINDOWS DRIVER AUDIO CONTROLS
                         elif "volume up" in action:
                             for _ in range(5):
-                                pyautogui.press("volumeup")
-                            result_string = "🔊 System volume increased by 5 units."
+                                send_windows_hardware_key(VK_VOLUME_UP)
+                                time.sleep(0.02)
+                            result_string = "🔊 System volume increased by 5 units via hardware kernel."
 
                         elif "volume down" in action:
                             for _ in range(5):
-                                pyautogui.press("volumedown")
-                            result_string = "🔉 System volume decreased by 5 units."
+                                send_windows_hardware_key(VK_VOLUME_DOWN)
+                                time.sleep(0.02)
+                            result_string = "🔉 System volume decreased by 5 units via hardware kernel."
 
                         elif "mute" in action:
-                            pyautogui.press("volumemute")
-                            result_string = "🔇 System audio toggle executed successfully."
+                            send_windows_hardware_key(VK_VOLUME_MUTE)
+                            result_string = "🔇 System audio mute state toggled via hardware kernel."
 
                         elif "play" in action or "pause" in action:
-                            pyautogui.press("playpause")
-                            result_string = "⏯️ Media playback state toggled."
+                            send_windows_hardware_key(VK_MEDIA_PLAY_PAUSE)
+                            result_string = "⏯️ Media playback state toggled via hardware kernel."
+
+                        # 📸 NEW REVERSE SCREENSHOT STREAM DIRECTIVE
+                        elif "screenshot" in action or "capture screen" in action:
+                            speak("Capturing screen array map.")
+                            ss_filename = "aira_desktop_snap.png"
+                            pyautogui.screenshot(ss_filename)
+                            # Finds absolute storage address path
+                            abs_path = os.path.abspath(ss_filename)
+                            result_string = f"📸 **Snapshot Captured:** Desktop image successfully mapped and saved locally at: `{abs_path}`"
                             
                         else:
                             result_string = f"❓ Operational command '{action}' not recognized by local agent."

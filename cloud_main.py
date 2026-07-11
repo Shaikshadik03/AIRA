@@ -201,7 +201,8 @@ async def handle_flutter_chat(payload: ChatPayload):
         title = payload.conversation_title
         clean_cmd = user_instruction.lower().strip()
         
-        if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open", "volume", "mute", "play", "pause"]):
+        # 📡 INTEGRATED KEYWORD INTERCEPTOR FILTER PACK
+        if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open", "volume", "mute", "play", "pause", "screenshot"]):
             if not agent_websocket:
                 return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected."}
                 
