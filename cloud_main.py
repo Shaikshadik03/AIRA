@@ -94,34 +94,34 @@ def fetch_active_groq_key() -> str:
     except Exception: pass
     return os.getenv("GROQ_API_KEY", "")
 
-# 🧠 NEW FLEXIBLE INTENT RESOLVER MATRIX
+# 🧠 UPGRADED ULTRA-FLEXIBLE INTENT RESOLVER MATRIX
 def resolve_hardware_intent(user_input: str) -> str | None:
     """Parses natural phrasing variations and normalizes them into strict laptop command mappings"""
     cmd = user_input.lower().strip()
     
-    # 1. Console Security & Power Grid Commands
-    if any(word in cmd for word in ["lock workstation", "lock pc", "lock computer", "secure pc"]) or cmd == "lock":
+    # 1. Reverse Visual Capture Controls (Checked first to prevent bypasses)
+    if any(word in cmd for word in ["screenshot", "screen shot", "snap", "capture screen", "capture display", "show screen"]):
+        return "screenshot"
+        
+    # 2. Console Security & Power Grid Commands
+    if any(word in cmd for word in ["lock", "secure pc", "secure laptop", "lock workstation"]):
         return "lock"
-    if any(word in cmd for word in ["go to sleep", "sleep mode", "suspend pc", "pc sleep", "put pc to sleep"]) or cmd == "sleep":
+    if any(word in cmd for word in ["sleep", "suspend", "hibernate"]):
         return "sleep"
         
-    # 2. System Performance Monitoring Commands
-    if any(word in cmd for word in ["system status", "check status", "pc status", "laptop status", "agent status", "how is my laptop"]):
+    # 3. System Performance Monitoring Commands
+    if any(word in cmd for word in ["status", "how is my laptop", "pc health", "system status"]):
         return "system status"
         
-    # 3. Kernel Level Audio Adjustments
-    if any(word in cmd for word in ["volume up", "make louder", "increase volume", "increase sound", "raise volume", "louder"]):
+    # 4. Kernel Level Audio Adjustments
+    if any(word in cmd for word in ["volume up", "louder", "increase volume", "increase sound", "raise volume"]):
         return "volume up"
-    if any(word in cmd for word in ["volume down", "make quieter", "decrease volume", "decrease sound", "lower volume", "quieter", "turn down the sound", "turn down sound"]):
+    if any(word in cmd for word in ["volume down", "quieter", "lower volume", "turn down", "decrease volume", "less sound"]):
         return "volume down"
-    if any(word in cmd for word in ["toggle mute", "silence pc", "unmute", "mute computer", "mute"]):
+    if any(word in cmd for word in ["mute", "silence", "unmute"]):
         return "mute"
-    if any(word in cmd for word in ["play media", "pause media", "toggle play", "resume video", "resume music", "play", "pause"]):
+    if any(word in cmd for word in ["play", "pause", "resume"]):
         return "play"
-        
-    # 4. Reverse Visual Capture Controls
-    if any(word in cmd for word in ["screenshot", "capture screen", "take snap", "screen snap", "capture display", "take screenshot", "show screen"]):
-        return "screenshot"
         
     # 5. Native Application Array Launches
     if "chrome" in cmd or "browser" in cmd:
@@ -260,7 +260,7 @@ async def handle_flutter_chat(payload: ChatPayload):
         sid = payload.session_id
         title = payload.conversation_title
         
-        # 📡 UPGRADED INTERCEPTOR GATE: Run flexible natural language verification loop
+        # 📡 RUNS UPGRADED INTERCEPTOR GATE FOR NATURAL PHRASING MATCHES
         hardware_action = resolve_hardware_intent(user_instruction)
         
         if hardware_action:
