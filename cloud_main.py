@@ -127,6 +127,10 @@ async def agent_tunnel_endpoint(websocket: WebSocket):
         pass
     finally:
         agent_websocket = None
+        # 🛡️ DISCONNECT SAFEGUARD: Clear pending jobs immediately if socket dies
+        for cmd_id, future in list(pending_futures.items()):
+            if not future.done():
+                future.set_result("📡 **Hardware Agent Disconnected:** The connection dropped unexpectedly during data transmission.")
 
 @app.post("/auth/register")
 async def register_saas_user(payload: RegisterPayload):
@@ -201,21 +205,21 @@ async def handle_flutter_chat(payload: ChatPayload):
         title = payload.conversation_title
         clean_cmd = user_instruction.lower().strip()
         
-        # 📡 UPDATED INTERCEPTOR GATE: Added "search" tracking array
+        # 📡 INTERCEPTOR GATE ARRAY
         if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open", "volume", "mute", "play", "pause", "screenshot"]) or clean_cmd.startswith("search"):
             if not agent_websocket:
                 return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected."}
-                
+            
             cmd_id = str(asyncio.get_running_loop().time())
             future = asyncio.get_running_loop().create_future()
             pending_futures[cmd_id] = future
             
             try:
                 await agent_websocket.send_json({"id": cmd_id, "action": clean_cmd})
-                result_string = await asyncio.wait_for(future, timeout=6.0)
+                result_string = await asyncio.wait_for(future, timeout=10.0)
                 return {"response": result_string}
             except asyncio.TimeoutError:
-                return {"response": "⚠️ **Transmission Timeout:** Local agent did not reply in time."}
+                return {"response": "⚠️ **Transmission Timeout:** Local agent did not reply within the 10-second data window."}
             finally:
                 pending_futures.pop(cmd_id, None)
 
