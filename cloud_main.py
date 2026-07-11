@@ -130,7 +130,7 @@ async def agent_tunnel_endpoint(websocket: WebSocket):
         # 🛡️ DISCONNECT SAFEGUARD: Clear pending jobs immediately if socket dies
         for cmd_id, future in list(pending_futures.items()):
             if not future.done():
-                future.set_result("📡 **Hardware Agent Disconnected:** The connection dropped unexpectedly during data transmission.")
+                future.set_result({"text": "📡 **Hardware Agent Disconnected:** The connection dropped unexpectedly during data transmission.", "image": None})
 
 @app.post("/auth/register")
 async def register_saas_user(payload: RegisterPayload):
@@ -208,7 +208,7 @@ async def handle_flutter_chat(payload: ChatPayload):
         # 📡 INTERCEPTOR GATE ARRAY
         if any(keyword in clean_cmd for keyword in ["system status", "lock", "sleep", "open", "volume", "mute", "play", "pause", "screenshot"]) or clean_cmd.startswith("search"):
             if not agent_websocket:
-                return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected."}
+                return {"response": "📡 **Hardware Agent Offline:** Your cloud cluster is active, but your laptop agent is disconnected.", "image": None}
             
             cmd_id = str(asyncio.get_running_loop().time())
             future = asyncio.get_running_loop().create_future()
@@ -216,10 +216,18 @@ async def handle_flutter_chat(payload: ChatPayload):
             
             try:
                 await agent_websocket.send_json({"id": cmd_id, "action": clean_cmd})
-                result_string = await asyncio.wait_for(future, timeout=10.0)
-                return {"response": result_string}
+                result_data = await asyncio.wait_for(future, timeout=10.0)
+                
+                # Format response natively based on whether data contains a structured payload
+                if isinstance(result_data, dict):
+                    return {
+                        "response": result_data.get("text", ""),
+                        "image": result_data.get("image", None)
+                    }
+                return {"response": result_data, "image": None}
+                
             except asyncio.TimeoutError:
-                return {"response": "⚠️ **Transmission Timeout:** Local agent did not reply within the 10-second data window."}
+                return {"response": "⚠️ **Transmission Timeout:** Local agent did not reply within the 10-second data window.", "image": None}
             finally:
                 pending_futures.pop(cmd_id, None)
 
@@ -230,7 +238,7 @@ async def handle_flutter_chat(payload: ChatPayload):
         env_key = fetch_active_groq_key()
         
         if not env_key or len(env_key) < 10:
-            return {"response": "🔑 **Groq API Key Missing:** Please open the mobile app Sidebar Drawer ➔ System Settings, paste your valid API key, and tap save."}
+            return {"response": "🔑 **Groq API Key Missing:** Please open the mobile app Sidebar Drawer ➔ System Settings, paste your valid API key, and tap save.", "image": None}
 
         async with aiohttp.ClientSession() as session:
             headers = {"Authorization": f"Bearer {env_key}", "Content-Type": "application/json"}
@@ -240,12 +248,12 @@ async def handle_flutter_chat(payload: ChatPayload):
                     data = await response.json()
                     reply = data["choices"][0]["message"]["content"]
                     save_message_to_history(sid, title, "assistant", reply, "AIRA Engine")
-                    return {"response": reply}
+                    return {"response": reply, "image": None}
                 else:
                     err_text = await response.text()
-                    return {"response": f"⚠️ **Groq API Error ({response.status}):** Check if your key is active. Details: {err_text[:100]}"}
+                    return {"response": f"⚠️ **Groq API Error ({response.status}):** Check if your key is active. Details: {err_text[:100]}", "image": None}
     except Exception as global_error:
-        return {"response": f"❌ **Internal Cloud Core Exception:** {str(global_error)}"}
+        return {"response": f"❌ **Internal Cloud Core Exception:** {str(global_error)}", "image": None}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
