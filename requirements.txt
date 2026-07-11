@@ -1,6 +1,5 @@
 fastapi
-uvicorn[standard]
-aiohttp
-pypdf
-python-multipart
-websockets
+uvicorn
+google-auth
+requests
+python-dotenv
