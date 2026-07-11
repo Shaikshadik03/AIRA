@@ -1,7 +1,6 @@
 name: front_end_app
-description: "AIRA OS Core Mobile Client Infrastructure."
+description: "AIRA Intelligence Console Mobile Client"
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -10,8 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.2.0
-  file_picker: 10.3.8
+  file_picker: ^10.3.8
+  speech_to_text: ^7.4.0
 
 dev_dependencies:
   flutter_test:
