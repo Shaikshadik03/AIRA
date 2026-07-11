@@ -1,5 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
 aiohttp
 pypdf
 python-multipart
+websockets
