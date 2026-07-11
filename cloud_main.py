@@ -131,7 +131,7 @@ async def agent_tunnel_endpoint(websocket: WebSocket):
         agent_websocket = None
         for cmd_id, future in list(pending_futures.items()):
             if not future.done():
-                future.set_result({"text": "📡 **Hardware Agent Disconnected:** The connection dropped unexpectedly during data transmission.", "image": None})
+                future.set_result({"text": "📡 **Hardware Agent Disconnected:** The connection dropped unexpectedly.", "image": None})
 
 @app.post("/auth/register")
 async def register_saas_user(payload: RegisterPayload):
@@ -207,27 +207,27 @@ async def handle_flutter_chat(payload: ChatPayload):
         
         env_key = fetch_active_groq_key()
         if not env_key or len(env_key) < 10:
-            return {"response": "🔑 **Groq API Key Missing:** Please open the mobile app Sidebar Drawer ➔ System Settings, paste your valid API key, and tap save.", "image": None}
+            return {"response": "🔑 **Groq API Key Missing:** Please check system configuration settings.", "image": None, "mobile_action": None}
 
         save_message_to_history(sid, title, "user", user_instruction, sender_name)
         chat_context = fetch_session_context(sid, limit=6)
         
         system_prompt = (
-            "You are AIRA, an advanced enterprise SaaS dark-aesthetic core operating assistant. "
-            "You have direct control over the user's physical laptop through specialized hardware tools. "
-            "If the user asks you to do something to their computer (like change volume, open apps, take screenshots, lock, sleep), "
-            "you MUST invoke the appropriate tool. Be conversational and helpful when answering general questions."
+            "You are AIRA, an advanced neural engine. You control both the user's laptop hardware AND their mobile device hardware tools. "
+            "Examine the user request closely. If they ask to operate laptop items (volume, screens, lock, apps), invoke 'execute_laptop_command'. "
+            "If they ask to operate phone hardware or communicate (flashlight, call mummy, message daddy), invoke 'execute_mobile_action'. "
+            "Strip out conversational filler words and execute tools decisively."
         )
         
         messages_payload = [{"role": "system", "content": system_prompt}] + chat_context
         
-        # 🧠 DEFINING THE CHAT COMPLETION TOOLS ARRAY SCHEMA FOR THE LLM LAYER
+        # 🧠 DUAL-DEVICE MULTI-TOOL CALLING CONFIGURATION SCHEMAS
         tools_schema = [
             {
                 "type": "function",
                 "function": {
                     "name": "execute_laptop_command",
-                    "description": "Call this to execute hardware controls or application launches on the user's physical laptop.",
+                    "description": "Call this to execute hardware controls or applications on the physical laptop workspace computer.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -238,8 +238,7 @@ async def handle_flutter_chat(payload: ChatPayload):
                                     "volume up", "volume down", "mute", "play",
                                     "open chrome", "open notepad", "open vscode",
                                     "open youtube", "open github", "open leetcode", "open google"
-                                ],
-                                "description": "The strict laptop hardware control configuration token."
+                                ]
                             }
                         },
                         "required": ["command"]
@@ -250,16 +249,32 @@ async def handle_flutter_chat(payload: ChatPayload):
                 "type": "function",
                 "function": {
                     "name": "execute_web_search",
-                    "description": "Call this to perform a live Google search query directly inside the laptop's web browser.",
+                    "description": "Performs a live Google search query execution routing map on the laptop desktop.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The raw text string or topic terms to look up on Google."
-                            }
+                            "query": {"type": "string"}
                         },
                         "required": ["query"]
+                    }
+                }
+            },
+            # 🌟 NEW UPGRADE: THE DEDICATED MOBILE LOCAL DEVICE TOOL MATRIX
+            {
+                "type": "function",
+                "function": {
+                    "name": "execute_mobile_action",
+                    "description": "Call this when the user requests actions local to their mobile phone device hardware or primary contacts.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action_type": {
+                                "type": "string",
+                                "enum": ["TOGGLE_FLASHLIGHT", "CALL_MUMMY", "MESSAGE_DADDY"],
+                                "description": "The normalized execution token parameter targeting mobile frameworks."
+                            }
+                        },
+                        "required": ["action_type"]
                     }
                 }
             }
@@ -277,30 +292,33 @@ async def handle_flutter_chat(payload: ChatPayload):
             
             async with session.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=api_payload) as response:
                 if response.status != 200:
-                    err_text = await response.text()
-                    return {"response": f"⚠️ **Groq API Error ({response.status}):** Details: {err_text[:100]}", "image": None}
+                    return {"response": f"⚠️ **Groq Gateway Refusal Code: {response.status}**", "image": None, "mobile_action": None}
                 
                 data = await response.json()
                 choice_message = data["choices"][0]["message"]
                 
-                # 📡 CORE TOOL ROUTING INTERCEPTOR LOOP
+                # 📡 LOGICAL TRAFFIC ROUTING DECK INTERCEPTOR
                 if "tool_calls" in choice_message and choice_message["tool_calls"]:
-                    if not agent_websocket:
-                        return {"response": "📡 **Hardware Agent Offline:** Your AI brain understood the request, but your physical laptop agent is currently disconnected.", "image": None}
-                    
                     tool_call = choice_message["tool_calls"][0]
                     function_name = tool_call["function"]["name"]
                     function_args = json.loads(tool_call["function"]["arguments"])
                     
-                    # Map the AI choice to the correct action target
+                    # Route Path A: The Target Action is Local to the Phone
+                    if function_name == "execute_mobile_action":
+                        target_action = function_args.get("action_type", "")
+                        confirm_msg = f"⚡ **AI Tool Engine:** Routing operational directive natively into mobile framework handler matrix... [Target: {target_action}]"
+                        save_message_to_history(sid, title, "assistant", confirm_msg, "AIRA Engine")
+                        return {"response": confirm_msg, "image": None, "mobile_action": target_action}
+                    
+                    # Route Path B: The Target Action belongs to the Laptop Hardware Workspace
+                    if not agent_websocket:
+                        return {"response": "📡 **Hardware Agent Offline:** Your AI brain understood the request, but your laptop agent connection is closed.", "image": None, "mobile_action": None}
+                    
                     hardware_action = ""
                     if function_name == "execute_laptop_command":
                         hardware_action = function_args.get("command", "")
                     elif function_name == "execute_web_search":
                         hardware_action = f"search {function_args.get('query', '')}"
-                    
-                    if not hardware_action:
-                        return {"response": "⚠️ **AI Tool Routing Error:** Failed to parse target operation arguments.", "image": None}
                         
                     cmd_id = str(asyncio.get_running_loop().time())
                     future = asyncio.get_running_loop().create_future()
@@ -313,25 +331,22 @@ async def handle_flutter_chat(payload: ChatPayload):
                         if isinstance(result_data, dict):
                             status_text = result_data.get("text", "")
                             save_message_to_history(sid, title, "assistant", status_text, "AIRA Engine")
-                            return {
-                                "response": status_text,
-                                "image": result_data.get("image", None)
-                            }
+                            return {"response": status_text, "image": result_data.get("image", None), "mobile_action": None}
+                            
                         save_message_to_history(sid, title, "assistant", result_data, "AIRA Engine")
-                        return {"response": result_data, "image": None}
-                        
+                        return {"response": result_data, "image": None, "mobile_action": None}
                     except asyncio.TimeoutError:
-                        return {"response": "⚠️ **Transmission Timeout:** Local laptop agent did not reply within the data window.", "image": None}
+                        return {"response": "⚠️ **Transmission Timeout Event.**", "image": None, "mobile_action": None}
                     finally:
                         pending_futures.pop(cmd_id, None)
                 
-                # Standard response conversational flow if no tool call was needed
+                # Conversational path return mapping structures
                 reply = choice_message.get("content", "")
                 save_message_to_history(sid, title, "assistant", reply, "AIRA Engine")
-                return {"response": reply, "image": None}
+                return {"response": reply, "image": None, "mobile_action": None}
                 
     except Exception as global_error:
-        return {"response": f"❌ **Internal Cloud Core Exception:** {str(global_error)}", "image": None}
+        return {"response": f"❌ **Cloud Exception Event:** {str(global_error)}", "image": None, "mobile_action": None}
 
 @app.post("/chat/document")
 async def upload_and_analyze_pdf(
@@ -342,7 +357,7 @@ async def upload_and_analyze_pdf(
 ):
     try:
         if not file.filename.lower().endswith('.pdf'):
-            return {"response": "❌ **Format Refusal:** AIRA Document Core only parses native `.pdf` files.", "image": None}
+            return {"response": "❌ **Format Refusal.**", "image": None}
         
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         with open(file_path, "wb") as buffer:
@@ -353,29 +368,20 @@ async def upload_and_analyze_pdf(
             reader = pypdf.PdfReader(pdf_file)
             for page in reader.pages:
                 text_content = page.extract_text()
-                if text_content:
-                    extracted_text += text_content + "\n"
+                if text_content: extracted_text += text_content + "\n"
                     
         if not extracted_text.strip():
-            return {"response": "⚠️ **Parsing Defect:** The PDF was uploaded but no readable text vector strings could be extracted.", "image": None}
+            return {"response": "⚠️ **Empty Text Extract Block.**", "image": None}
             
-        user_display_msg = f"📁 [Uploaded Document File]: {file.filename} ({len(extracted_text)} characters parsed)"
+        user_display_msg = f"📁 [Uploaded Document]: {file.filename} ({len(extracted_text)} characters)"
         save_message_to_history(session_id, conversation_title, "user", user_display_msg, user)
         
         env_key = fetch_active_groq_key()
-        if not env_key or len(env_key) < 10:
-            return {"response": "🔑 **Groq API Key Missing:** Document mapped cleanly, but Groq authorization token is absent.", "image": None}
-            
-        system_instruction = (
-            "You are AIRA, an enterprise SaaS dark-aesthetic core assistant. "
-            "The user has uploaded a document file core. Read the full text contents attached below, "
-            "and output a beautiful, premium, highly professional summary. Use crisp markdown bullet points, "
-            "break it down into executive highlights, and list actionable takeaways tailored for quick mobile viewing."
-        )
+        system_instruction = "You are AIRA OS Document Intelligence Core. Generate an elegant professional executive bulleted breakdown of the file text string asset mapped below."
         
         messages_payload = [
             {"role": "system", "content": system_instruction},
-            {"role": "user", "content": f"Document Name: {file.filename}\n\nDocument Contents:\n{extracted_text}"}
+            {"role": "user", "content": f"Document Vector Profile:\n{extracted_text}"}
         ]
         
         async with aiohttp.ClientSession() as session:
@@ -387,12 +393,9 @@ async def upload_and_analyze_pdf(
                     analysis_reply = data["choices"][0]["message"]["content"]
                     save_message_to_history(session_id, conversation_title, "assistant", analysis_reply, "AIRA Engine")
                     return {"response": analysis_reply, "image": None}
-                else:
-                    err_text = await response.text()
-                    return {"response": f"⚠️ **Groq API Document Analysis Error ({response.status}):** Details: {err_text[:100]}", "image": None}
-                    
+                return {"response": "⚠️ **Analysis Interruption.**", "image": None}
     except Exception as doc_error:
-        return {"response": f"❌ **Document Pipeline Exception Event:** {str(doc_error)}", "image": None}
+        return {"response": f"❌ Fault: {str(doc_error)}", "image": None}
     finally:
         if 'file_path' in locals() and os.path.exists(file_path):
             try: os.remove(file_path)
