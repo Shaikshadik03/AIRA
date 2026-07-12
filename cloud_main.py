@@ -3,8 +3,14 @@ AIRA MVP Backend
 -----------------
 Handles:
   - Google Sign-In token verification
-  - Chat endpoint (calls Grok API)
+  - Chat endpoint (calls Groq's free API)
   - Chat history storage per user
+
+Deploy on Render:
+    Start command -> uvicorn cloud_main:app --host 0.0.0.0 --port $PORT
+    Set environment variables in Render dashboard:
+        GOOGLE_CLIENT_ID = <your Google OAuth Web Client ID>
+        GROQ_API_KEY     = <your Groq API key, free, no credit card needed>
 """
 
 import os
@@ -26,8 +32,8 @@ app.add_middleware(
 )
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
-XAI_API_KEY = os.environ.get("XAI_API_KEY", "")
-XAI_MODEL = os.environ.get("XAI_MODEL", "grok-2-latest")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
 
 init_db()
 
@@ -64,7 +70,7 @@ def chat(payload: dict, user: dict = Depends(verify_google_token)):
     get_or_create_user(user["user_id"], user["email"], user["name"])
     save_message(user["user_id"], "user", message)
 
-    reply = call_grok(message)
+    reply = call_groq(message)
 
     save_message(user["user_id"], "assistant", reply)
     return {"reply": reply}
@@ -75,17 +81,17 @@ def history(user: dict = Depends(verify_google_token)):
     return {"messages": get_history(user["user_id"])}
 
 
-def call_grok(message: str) -> str:
-    if not XAI_API_KEY:
-        return "AIRA isn't fully set up yet — add XAI_API_KEY on the server."
+def call_groq(message: str) -> str:
+    if not GROQ_API_KEY:
+        return "AIRA isn't fully set up yet — add GROQ_API_KEY on the server."
 
-    url = "https://api.x.ai/v1/chat/completions"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {XAI_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
     body = {
-        "model": XAI_MODEL,
+        "model": GROQ_MODEL,
         "messages": [
             {"role": "system", "content": "You are AIRA, a helpful personal AI assistant."},
             {"role": "user", "content": message},
