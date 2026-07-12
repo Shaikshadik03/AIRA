@@ -1,12 +1,5 @@
 // AIRA MVP — Flutter App
 // Screens: Google Sign-In -> Chat (with cloud-saved history)
-//
-// Setup needed before running:
-// 1. Add to pubspec.yaml dependencies:
-//      google_sign_in: ^6.2.1
-//      http: ^1.2.0
-// 2. Set up Google Sign-In for Android (google-services.json from Firebase/Google Cloud Console).
-// 3. Replace `backendUrl` below with your deployed Render URL.
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -28,7 +21,7 @@ class AiraApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0E0E12),
-        fontFamily: 'Georgia', // swap for a bundled serif font later (e.g. Lora, Source Serif 4)
+        fontFamily: 'Georgia',
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF7C5CFC),
           brightness: Brightness.dark,
@@ -39,10 +32,6 @@ class AiraApp extends StatelessWidget {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// LOGIN SCREEN
-// ---------------------------------------------------------------------------
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -60,7 +49,6 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final account = await _googleSignIn.signIn();
       if (account == null) {
-        // User cancelled the sign-in flow.
         setState(() => _loading = false);
         return;
       }
@@ -139,12 +127,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// CHAT SCREEN
-// ---------------------------------------------------------------------------
-
 class ChatMessage {
-  final String role; // 'user' or 'assistant'
+  final String role;
   final String content;
   ChatMessage(this.role, this.content);
 }
@@ -164,9 +148,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  // TODO: replace with your deployed Render backend URL, e.g.
-  // 'https://aira-backend.onrender.com'
-  static const String backendUrl = 'https://YOUR-BACKEND.onrender.com';
+  static const String backendUrl = 'https://aira-160z.onrender.com';
 
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -196,7 +178,6 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     } catch (_) {
-      // No history yet or backend unreachable — fine, user can still chat.
     } finally {
       if (mounted) setState(() => _loadingHistory = false);
       _scrollToBottom();
