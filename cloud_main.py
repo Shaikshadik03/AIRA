@@ -3,18 +3,8 @@ AIRA MVP Backend
 -----------------
 Handles:
   - Google Sign-In token verification
-  - Chat endpoint (calls Gemini API)
+  - Chat endpoint (calls Grok API)
   - Chat history storage per user
-
-Run locally:
-    pip install -r requirements.txt
-    uvicorn cloud_main:app --reload
-
-Deploy on Render:
-    Start command -> uvicorn cloud_main:app --host 0.0.0.0 --port $PORT
-    Set environment variables in Render dashboard:
-        GOOGLE_CLIENT_ID = <your Google OAuth Web Client ID>
-        XAI_API_KEY      = <your xAI (Grok) API key>
 """
 
 import os
@@ -28,7 +18,6 @@ from database import init_db, save_message, get_history, get_or_create_user
 
 app = FastAPI(title="AIRA Backend")
 
-# Allow your Flutter app (and testing tools) to call this API.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,13 +27,12 @@ app.add_middleware(
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 XAI_API_KEY = os.environ.get("XAI_API_KEY", "")
-XAI_MODEL = os.environ.get("XAI_MODEL", "grok-4-fast")
+XAI_MODEL = os.environ.get("XAI_MODEL", "grok-2-latest")
 
 init_db()
 
 
 def verify_google_token(authorization: str = Header(...)) -> dict:
-    """Reads 'Authorization: Bearer <id_token>' and verifies it with Google."""
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
@@ -88,7 +76,6 @@ def history(user: dict = Depends(verify_google_token)):
 
 
 def call_grok(message: str) -> str:
-    """Sends the message to xAI's Grok API (OpenAI-compatible) and returns the reply text."""
     if not XAI_API_KEY:
         return "AIRA isn't fully set up yet — add XAI_API_KEY on the server."
 
@@ -107,7 +94,8 @@ def call_grok(message: str) -> str:
 
     try:
         res = requests.post(url, headers=headers, json=body, timeout=30)
-        res.raise_for_status()
+        if res.status_code != 200:
+            return f"AIRA backend error ({res.status_code}): {res.text[:300]}"
         data = res.json()
         return data["choices"][0]["message"]["content"]
     except Exception as e:
