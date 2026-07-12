@@ -52,8 +52,8 @@ def verify_google_token(authorization: str = Header(...)) -> dict:
             "email": idinfo.get("email", ""),
             "name": idinfo.get("name", ""),
         }
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired Google token")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid or expired Google token: {e}")
 
 
 @app.get("/")
